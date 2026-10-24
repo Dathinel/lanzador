@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="Lanzador.App/Lanzador.App.csproj" />
     <Project Path="Lanzador.Cli/Lanzador.Cli.csproj" />
     <Project Path="Lanzador.Core/Lanzador.Core.csproj" />
   </Folder>

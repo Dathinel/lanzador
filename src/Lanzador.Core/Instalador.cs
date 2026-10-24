@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -84,6 +85,12 @@ public sealed class Instalador : IDisposable
     /// <summary>Versión del Lanzador, comparada con el <c>minApp</c> de las entradas <c>app</c>.</summary>
     public static PackageVersion Version { get; } = PackageVersion.Parse(typeof(Instalador).Assembly.GetName().Version?.ToString(3) ?? "0.0.0");
 
+    public Carpetas Carpetas => _carpetas;
+
+    public string RaizDathinel => Path.GetDirectoryName(_carpetas.Herramientas) ?? _carpetas.Herramientas;
+
+    public long EspacioTotalDathinel() => CalculadorEspacio.SumarCarpeta(RaizDathinel);
+
     public static string? ClaveDelCatalogo()
     {
         using Stream? stream = typeof(Instalador).Assembly.GetManifestResourceStream("Lanzador.clave-catalogo.txt");
@@ -98,11 +105,14 @@ public sealed class Instalador : IDisposable
     }
 
     /// <exception cref="PackageDownloadException">No se pudo leer el índice o su firma no es válida.</exception>
-    public async Task<SignedIndex> IndiceAsync(CancellationToken ct)
+    public Task<SignedIndex> IndiceAsync(CancellationToken ct) => IndiceAsync(refresh: false, ct);
+
+    /// <exception cref="PackageDownloadException">No se pudo leer el índice o su firma no es válida.</exception>
+    public async Task<SignedIndex> IndiceAsync(bool refresh, CancellationToken ct = default)
     {
         if (_indiceLocal is null)
         {
-            return await _indice.GetIndexAsync(cancellationToken: ct).ConfigureAwait(false);
+            return await _indice.GetIndexAsync(refresh: refresh, cancellationToken: ct).ConfigureAwait(false);
         }
 
         using ECDsa clave = IndexSignature.TryImportPublicKey(_clave) ?? throw new PackageDownloadException("La clave pública del catálogo no es válida.");
@@ -132,6 +142,43 @@ public sealed class Instalador : IDisposable
             .Select(e => new Herramienta(e.Id, e.Version, e.Size, Instalada(e.Id)))];
     }
 
+    /// <summary>Obtiene la lista de tarjetas con estado, versiones y espacio para mostrar en la interfaz.</summary>
+    public async Task<IReadOnlyList<TarjetaHerramienta>> ObtenerTarjetasAsync(bool refrescar = false, CancellationToken ct = default)
+    {
+        SignedIndex indice = await IndiceAsync(refrescar, ct).ConfigureAwait(false);
+        var apps = indice.Entries.Where(e => e.Kind == IndexEntryKind.App && e.WorksWith(Version))
+            .GroupBy(e => e.Id, StringComparer.Ordinal)
+            .Select(g => g.MaxBy(e => e.Version)!)
+            .OrderBy(e => e.Id, StringComparer.Ordinal);
+
+        var tarjetas = new List<TarjetaHerramienta>();
+        foreach (IndexEntry app in apps)
+        {
+            var (nombre, descripcion) = CatalogoMetadatos.Obtener(app.Id);
+            PackageVersion? instalada = Instalada(app.Id);
+            EspacioInstalada? espacio = CalculadorEspacio.CalcularEspacioInstalada(app.Id, _carpetas);
+            EstadoTarjeta estado = instalada switch
+            {
+                null => EstadoTarjeta.NoInstalada,
+                var v when v.CompareTo(app.Version) < 0 => EstadoTarjeta.Actualizable,
+                _ => EstadoTarjeta.Instalada,
+            };
+
+            tarjetas.Add(new TarjetaHerramienta(
+                app.Id,
+                nombre,
+                descripcion,
+                app.Version,
+                instalada,
+                app.Size,
+                espacio,
+                estado
+            ));
+        }
+
+        return tarjetas;
+    }
+
     /// <summary>La versión instalada más nueva de <paramref name="id"/>, o <c>null</c>.</summary>
     public PackageVersion? Instalada(string id) => VersionesInstaladas(id).MaxBy(v => v);
 
@@ -141,10 +188,12 @@ public sealed class Instalador : IDisposable
             ? [.. Directory.EnumerateDirectories(_carpetas.Herramientas).Select(Path.GetFileName).Where(id => Identifiers.IsValid(id) && Instalada(id!) is not null).Select(id => id!).Order(StringComparer.Ordinal)]
             : [];
 
-    /// <summary>Instala la versión más nueva de <paramref name="id"/> (y sus módulos y modelos); si ya está, no hace nada. Devuelve la versión que queda.</summary>
-    /// <exception cref="ErrorDeUso">El índice no tiene esa app.</exception>
-    /// <exception cref="PackageDownloadException">Red, firma o huella (lo bajado con huella mala ya se borró).</exception>
-    public async Task<PackageVersion> InstalarAsync(string id, IProgress<string>? progreso, CancellationToken ct)
+    /// <summary>Instala la versión más nueva de <paramref name="id"/> (y sus módulos y modelos) con progreso en texto.</summary>
+    public Task<PackageVersion> InstalarAsync(string id, IProgress<string>? progreso, CancellationToken ct) =>
+        InstalarAsync(id, progreso is null ? null : new AdaptadorProgresoCadena(progreso), ct);
+
+    /// <summary>Instala la versión más nueva de <paramref name="id"/> (y sus módulos y modelos) con progreso detallado.</summary>
+    public async Task<PackageVersion> InstalarAsync(string id, IProgress<ProgresoDetallado>? progreso, CancellationToken ct)
     {
         SignedIndex indice = await IndiceAsync(ct).ConfigureAwait(false);
         IndexEntry entrada = indice.Latest(id, Version, IndexEntryKind.App)
@@ -152,11 +201,14 @@ public sealed class Instalador : IDisposable
                 ? $"«{id}» necesita el Lanzador {min} o posterior."
                 : $"El catálogo no tiene ninguna herramienta llamada «{id}». Mira «lanzador lista».");
 
+        var coordinador = new CoordinadorProgreso(progreso, entrada.Size);
         string destino = Path.Combine(_carpetas.Herramientas, id, entrada.Version.ToString());
         if (!Directory.Exists(destino))
         {
             string zip = Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip");
-            await DescargarAsync(id, entrada, zip, progreso, ct).ConfigureAwait(false);
+            await DescargarAsync(id, entrada, zip, coordinador.ParaArchivo(id, entrada.Size, "Descargando"), ct).ConfigureAwait(false);
+            coordinador.ArchivoTerminado(entrada.Size);
+            coordinador.NotificarFase("Extrayendo", id);
             Extraer(zip, destino, ct);
             File.Delete(zip);
         }
@@ -168,7 +220,7 @@ public sealed class Instalador : IDisposable
             ManifiestoHerramienta? leido = await JsonSerializer.DeserializeAsync(stream, ManifiestoJson.Default.ManifiestoHerramienta, ct).ConfigureAwait(false);
             foreach (string modulo in leido?.Modulos ?? [])
             {
-                await InstalarModuloAsync(indice, modulo, progreso, ct).ConfigureAwait(false);
+                await InstalarModuloAsync(indice, modulo, coordinador, ct).ConfigureAwait(false);
             }
         }
 
@@ -177,11 +229,16 @@ public sealed class Instalador : IDisposable
             Directory.Delete(Path.Combine(_carpetas.Herramientas, id, vieja.ToString()), recursive: true);
         }
 
+        coordinador.NotificarFase("Listo", id);
         return entrada.Version;
     }
 
-    /// <summary>Actualiza <paramref name="id"/> o, sin id, todas las instaladas. Devuelve las que cambiaron de versión.</summary>
-    public async Task<IReadOnlyList<(string Id, PackageVersion De, PackageVersion A)>> ActualizarAsync(string? id, IProgress<string>? progreso, CancellationToken ct)
+    /// <summary>Actualiza <paramref name="id"/> o, sin id, todas las instaladas con progreso en texto.</summary>
+    public Task<IReadOnlyList<(string Id, PackageVersion De, PackageVersion A)>> ActualizarAsync(string? id, IProgress<string>? progreso, CancellationToken ct) =>
+        ActualizarAsync(id, progreso is null ? null : new AdaptadorProgresoCadena(progreso), ct);
+
+    /// <summary>Actualiza <paramref name="id"/> o, sin id, todas las instaladas con progreso detallado.</summary>
+    public async Task<IReadOnlyList<(string Id, PackageVersion De, PackageVersion A)>> ActualizarAsync(string? id, IProgress<ProgresoDetallado>? progreso, CancellationToken ct)
     {
         IReadOnlyList<string> ids = id is null ? Instaladas() : [id];
         var cambios = new List<(string, PackageVersion, PackageVersion)>();
@@ -211,6 +268,65 @@ public sealed class Instalador : IDisposable
         Directory.Delete(carpeta, recursive: true);
     }
 
+    /// <summary>Busca el ejecutable principal para abrir la herramienta instalada.</summary>
+    public string? BuscarEjecutable(string id)
+    {
+        PackageVersion? v = Instalada(id);
+        if (v is null)
+        {
+            return null;
+        }
+
+        string carpeta = Path.Combine(_carpetas.Herramientas, id, v.ToString());
+        if (!Directory.Exists(carpeta))
+        {
+            return null;
+        }
+
+        string[] exes = Directory.GetFiles(carpeta, "*.exe");
+        if (exes.Length == 0)
+        {
+            return null;
+        }
+
+        string? exacto = exes.FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).Equals(id, StringComparison.OrdinalIgnoreCase));
+        if (exacto is not null)
+        {
+            return exacto;
+        }
+
+        string? appExe = exes.FirstOrDefault(f => !Path.GetFileNameWithoutExtension(f).EndsWith(".Cli", StringComparison.OrdinalIgnoreCase)
+                                              && !Path.GetFileNameWithoutExtension(f).EndsWith(".Tests", StringComparison.OrdinalIgnoreCase));
+        return appExe ?? exes[0];
+    }
+
+    /// <summary>Lanza el proceso de la herramienta configurando las rutas de módulos compartidos.</summary>
+    public void AbrirHerramienta(string id)
+    {
+        string exe = BuscarEjecutable(id) ?? throw new ErrorDeUso($"No se encontró ningún ejecutable para «{id}».");
+        var psi = new ProcessStartInfo(exe)
+        {
+            WorkingDirectory = Path.GetDirectoryName(exe)!,
+            UseShellExecute = false,
+        };
+        psi.Environment["SUBTITULAR_MODULOS"] = _carpetas.Modulos;
+        psi.Environment["RASTREAR_MODULOS"] = _carpetas.Modulos;
+        psi.Environment["RODAJE_MODULOS"] = _carpetas.Modulos;
+        Process.Start(psi);
+    }
+
+    /// <summary>Abre la carpeta %LOCALAPPDATA%\Dathinel en el explorador de archivos.</summary>
+    public void AbrirCarpetaDathinel()
+    {
+        string raiz = RaizDathinel;
+        if (!Directory.Exists(raiz))
+        {
+            Directory.CreateDirectory(raiz);
+        }
+
+        Process.Start(new ProcessStartInfo(raiz) { UseShellExecute = true });
+    }
+
     public void Dispose() => _indice.Dispose();
 
     private IEnumerable<PackageVersion> VersionesInstaladas(string id)
@@ -230,7 +346,7 @@ public sealed class Instalador : IDisposable
         }
     }
 
-    private async Task InstalarModuloAsync(SignedIndex indice, string id, IProgress<string>? progreso, CancellationToken ct)
+    private async Task InstalarModuloAsync(SignedIndex indice, string id, CoordinadorProgreso coordinador, CancellationToken ct)
     {
         // El minApp de un módulo habla de Rodaje, no del Lanzador: se toma el más nuevo publicado.
         IndexEntry entrada = indice.Entries.Where(e => e.Id == id && e.Kind == IndexEntryKind.Module).MaxBy(e => e.Version)
@@ -238,8 +354,11 @@ public sealed class Instalador : IDisposable
         string carpeta = Path.Combine(_carpetas.Modulos, id, entrada.Version.ToString());
         if (!Directory.Exists(carpeta))
         {
+            coordinador.AgregarEstimacion(entrada.Size);
             string paquete = Path.Combine(_carpetas.Descargas, entrada.Sha256 + PackageManifest.FileExtension);
-            await DescargarAsync(id, entrada, paquete, progreso, ct).ConfigureAwait(false);
+            await DescargarAsync(id, entrada, paquete, coordinador.ParaArchivo(id, entrada.Size, "Descargando módulo"), ct).ConfigureAwait(false);
+            coordinador.ArchivoTerminado(entrada.Size);
+            coordinador.NotificarFase("Extrayendo módulo", id);
             Extraer(paquete, carpeta, ct);
             File.Delete(paquete);
         }
@@ -247,24 +366,23 @@ public sealed class Instalador : IDisposable
         var almacen = new ModelStore(_carpetas.Modelos, _archivos, _politica);
         foreach (ModuleModel modelo in ModuleModels.Read(Path.Combine(carpeta, "paquete.json")))
         {
-            await almacen.PlaceAsync(modelo, carpeta, Progreso(modelo.Id, modelo.Size, progreso), ct).ConfigureAwait(false);
+            coordinador.AgregarEstimacion(modelo.Size);
+            await almacen.PlaceAsync(modelo, carpeta, coordinador.ParaArchivo(modelo.Id, modelo.Size, "Descargando modelo"), ct).ConfigureAwait(false);
+            coordinador.ArchivoTerminado(modelo.Size);
         }
     }
 
-    private async Task DescargarAsync(string id, IndexEntry entrada, string destino, IProgress<string>? progreso, CancellationToken ct)
+    private async Task DescargarAsync(string id, IndexEntry entrada, string destino, IProgress<DownloadProgress>? progreso, CancellationToken ct)
     {
         try
         {
-            await _archivos.DownloadAsync(new DownloadTarget(entrada.Url, entrada.Sha256, entrada.Size), destino, Progreso(id, entrada.Size, progreso), ct).ConfigureAwait(false);
+            await _archivos.DownloadAsync(new DownloadTarget(entrada.Url, entrada.Sha256, entrada.Size), destino, progreso, ct).ConfigureAwait(false);
         }
         catch (DownloadVerificationException ex)
         {
             throw new DownloadVerificationException($"«{id}» no es lo que firma el catálogo: {ex.Message}", ex);
         }
     }
-
-    private static IProgress<DownloadProgress>? Progreso(string id, long total, IProgress<string>? progreso) =>
-        progreso is null ? null : new Reporte(p => progreso.Report($"{id}: {(int)(p.Fraction * 100)} % de {Peso(total)}"));
 
     public static string Peso(long bytes) => bytes >= 1L << 30
         ? string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):F1} GB")
@@ -318,6 +436,106 @@ public sealed class Instalador : IDisposable
             }
 
             throw;
+        }
+    }
+
+    private sealed class CoordinadorProgreso(IProgress<ProgresoDetallado>? destino, long totalInicial)
+    {
+        private readonly Stopwatch _reloj = Stopwatch.StartNew();
+        private long _bytesArchivosTerminados;
+        private long _totalEstimado = Math.Max(totalInicial, 1);
+        private long _ultimoTiempoMs;
+        private long _ultimosBytesRecibidos;
+        private double _velocidad;
+
+        public void AgregarEstimacion(long bytes)
+        {
+            if (bytes > 0)
+            {
+                _totalEstimado += bytes;
+            }
+        }
+
+        public IProgress<DownloadProgress>? ParaArchivo(string idOArchivo, long tamanoArchivo, string fase)
+        {
+            if (destino is null)
+            {
+                return null;
+            }
+
+            _ultimoTiempoMs = _reloj.ElapsedMilliseconds;
+            _ultimosBytesRecibidos = 0;
+            _velocidad = 0;
+
+            return new Reporte(p =>
+            {
+                long ahora = _reloj.ElapsedMilliseconds;
+                long dt = ahora - _ultimoTiempoMs;
+                if (dt >= 150)
+                {
+                    long deltaBytes = p.Received - _ultimosBytesRecibidos;
+                    if (deltaBytes >= 0)
+                    {
+                        double vInstantanea = deltaBytes * 1000.0 / dt;
+                        _velocidad = _velocidad <= 0 ? vInstantanea : (_velocidad * 0.7 + vInstantanea * 0.3);
+                    }
+                    _ultimoTiempoMs = ahora;
+                    _ultimosBytesRecibidos = p.Received;
+                }
+
+                long acumulado = _bytesArchivosTerminados + p.Received;
+                double agregado = Math.Clamp((double)acumulado / Math.Max(_totalEstimado, acumulado), 0.0, 1.0);
+                destino.Report(new ProgresoDetallado(
+                    fase,
+                    idOArchivo,
+                    p.Received,
+                    tamanoArchivo,
+                    _velocidad,
+                    acumulado,
+                    Math.Max(_totalEstimado, acumulado),
+                    agregado
+                ));
+            });
+        }
+
+        public void ArchivoTerminado(long tamanoArchivo)
+        {
+            _bytesArchivosTerminados += tamanoArchivo;
+        }
+
+        public void NotificarFase(string fase, string detalle)
+        {
+            if (destino is null)
+            {
+                return;
+            }
+
+            double agregado = Math.Clamp((double)_bytesArchivosTerminados / Math.Max(_totalEstimado, 1), 0.0, 1.0);
+            destino.Report(new ProgresoDetallado(
+                fase,
+                detalle,
+                0,
+                0,
+                0,
+                _bytesArchivosTerminados,
+                _totalEstimado,
+                agregado
+            ));
+        }
+    }
+
+    private sealed class AdaptadorProgresoCadena(IProgress<string> destino) : IProgress<ProgresoDetallado>
+    {
+        public void Report(ProgresoDetallado value)
+        {
+            if (value.BytesTotales > 0)
+            {
+                destino.Report($"{value.Archivo}: {(int)(value.ProgresoArchivo * 100)} % de {Peso(value.BytesTotales)}");
+            }
+            else if (!string.IsNullOrEmpty(value.Fase))
+            {
+                destino.Report(value.Fase);
+            }
         }
     }
 
