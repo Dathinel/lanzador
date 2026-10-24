@@ -232,4 +232,26 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         Assert.Equal(2, codigo);
         Assert.StartsWith("Error: ", error.ToString(), StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(@"D:\no\existe\indice.json")]
+    [InlineData("noexiste.json")]
+    public async Task Indice_local_inexistente_sale_con_2_en_espanol(string indice)
+    {
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.Equal($"Error: El índice «{indice}» no es una URL ni un archivo que exista.", error.ToString().Trim());
+    }
+
+    [Fact]
+    public async Task Indice_local_sin_firma_sale_con_2_en_espanol()
+    {
+        string indice = Path.Combine(_temp, "indice.json");
+        File.WriteAllText(indice, Indice());
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--clave", _firmante.PublicKeyBase64, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.Equal($"Error: No se pudo leer el índice «{indice}» o su firma «.sig».", error.ToString().Trim());
+    }
 }

@@ -12,6 +12,6 @@ Herramienta de IA aparte de Rodaje, con interfaz propia. Repositorio público `D
 ## Estado (24-oct)
 
 - Fase 0 cerrada: esqueleto, licencia y `src\Lanzador.slnx`.
-- Fase 1 cerrada: `Lanzador.Core` (`Instalador` sobre `Rodaje.Packages`: índice firmado, descarga reanudable, módulos y modelos compartidos en `Comun\`) y `Lanzador.Cli` AOT (6,1 MB) con `lista | instalar | actualizar | quitar`; 14 pruebas contra un servidor local. Cifras y pendientes en `docs/informe-fase-1.md`.
+- Fase 1 cerrada: `Lanzador.Core` (`Instalador` sobre `Rodaje.Packages`: índice firmado, descarga reanudable, módulos y modelos compartidos en `Comun\`) y `Lanzador.Cli` AOT (6,2 MB) con `lista | instalar | actualizar | quitar`; 17 pruebas contra un servidor local. Verificada por un agente aparte; cifras y pendientes en `docs/informe-fase-1.md`.
 - **Submódulo** en `913828a4` (rama `claude/indice-app` de Rodaje, `IndexEntryKind.App`, sin push ni PR todavía): cuando ese PR se una, mover el submódulo al commit de `main`.
 - **Siguiente:** fase 2, ventana WinUI 3 sobre `Lanzador.Core`; antes, decidir cómo las apps encuentran `Comun\modulos` (`..\PLAN.md`).

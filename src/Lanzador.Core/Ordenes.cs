@@ -120,10 +120,21 @@ public static class Ordenes
             progreso.Cerrar();
             return Fallo(error, ex.Message, 1);
         }
-        catch (Exception ex) when (ex is PackageDownloadException or IOException or UnauthorizedAccessException or UriFormatException or System.Text.Json.JsonException)
+        catch (PackageDownloadException ex)
         {
             progreso.Cerrar();
             return Fallo(error, ex.Message, 2);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            progreso.Cerrar();
+            return Fallo(error, $"El «{Instalador.ManifiestoNombre}» de la herramienta no es JSON válido.", 2);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Sin ex.Message: el del framework sale en inglés.
+            progreso.Cerrar();
+            return Fallo(error, $"No se pudo leer o escribir en el disco ({ex.GetType().Name}).", 2);
         }
     }
 

@@ -58,7 +58,12 @@ public sealed class Instalador : IDisposable
         _carpetas = carpetas ?? throw new ArgumentNullException(nameof(carpetas));
         ArgumentException.ThrowIfNullOrWhiteSpace(indice);
         ArgumentNullException.ThrowIfNull(http);
-        Uri url = File.Exists(indice) ? new Uri(Path.GetFullPath(indice)) : new Uri(indice, UriKind.Absolute);
+        // Mensaje propio: el del framework sale en inglés.
+        if (!Uri.TryCreate(File.Exists(indice) ? Path.GetFullPath(indice) : indice, UriKind.Absolute, out Uri? url) || (url.IsFile && !File.Exists(url.LocalPath)))
+        {
+            throw new PackageDownloadException($"El índice «{indice}» no es una URL ni un archivo que exista.");
+        }
+
         _indiceLocal = url.IsFile ? url.LocalPath : null;
         _clave = clavePublica ?? ClaveDelCatalogo();
         _archivos = new FileDownloader(http);
@@ -107,9 +112,13 @@ public sealed class Instalador : IDisposable
             byte[] firma = await File.ReadAllBytesAsync(_indiceLocal + ".sig", ct).ConfigureAwait(false);
             return SignedIndex.Load(json, firma, clave, _politica);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new PackageDownloadException($"No se pudo leer el índice «{_indiceLocal}»: {ex.Message}", ex);
+            throw new PackageDownloadException($"No se pudo leer el índice «{_indiceLocal}» o su firma «.sig».", ex);
+        }
+        catch (FormatException ex)
+        {
+            throw new PackageDownloadException(ex.Message, ex);
         }
     }
 

@@ -16,5 +16,11 @@ Hecha por Claude (Fable 5.1) a partir de `..\encargos\fase1-lanzador-cli.md`.
 
 - **Peso:** 6,1 MB frente a los 4,0 MB de `Subtitular.Cli`; lo que pesa es HttpClient con TLS, System.Text.Json, zip y ECDSA. No es la más ligera de las tres por ahora.
 - Las apps instaladas todavía no saben dónde están los módulos (`Comun\modulos`): hay que pasárselo (variable `SUBTITULAR_MODULOS` o equivalente) en la fase 2 o 3.
-- `--indice <ruta>` (archivo local) está implementado pero sin prueba; una app solo declara módulos (sus modelos vienen del `paquete.json` del módulo), no modelos propios.
+- Una app solo declara módulos (sus modelos vienen del `paquete.json` del módulo), no modelos propios.
 - Fase 2: ventana WinUI 3 con una tarjeta por herramienta. Fase 3: entradas `app` en el catálogo firmado por Daniel.
+
+## Verificación (agente aparte, 24-oct)
+
+- Los 7 criterios se cumplen. Seguridad revisada: zip por `SafePaths` (rutas con `..`, absolutas o reservadas → se rechaza y se borra la carpeta temporal); `quitar` e `Instalar` exigen `Identifiers.IsValid` (solo `[a-z0-9.-]`, nada sale de `Herramientas\<app>`); la clave incrustada es `clave-catalogo.txt` del submódulo, idéntica a la de `main` de Rodaje, y `lista` contra el catálogo real verifica la firma con ella. Con huella mala queda solo `Comun\descargas\indice-visto.txt`: es la fecha del último índice firmado (protección contra retrocesos), no un archivo de la app; se deja a propósito.
+- Fallo arreglado: el exe AOT mostraba claves de recursos (`IO_PathNotFound_Path`, `net_uri_BadFormat`) por `UseSystemResourceKeys`; ahora `--indice` inexistente, sin `.sig`, disco y `herramienta.json` roto dan mensajes propios en español y se quitó la opción (+24 KB). Tres pruebas nuevas.
+- Cifras: Release `-warnaserror` 0 advertencias; pruebas 17/17 en 3 corridas seguidas (13 s, 12 s, 17 s; la de reanudación no falló); AOT sin avisos, `Lanzador.Cli.exe` 6.163.456 bytes (12 s). Exe a mano: sin argumentos → uso y 1; `lista` real → 0 entradas, 0, 1,0 s; `instalar noexiste` → 1; `--indice` inexistente → 2.
