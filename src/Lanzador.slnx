@@ -1,3 +1,9 @@
 <Solution>
-  <Project Path="Lanzador.Cli/Lanzador.Cli.csproj" />
+  <Folder Name="/src/">
+    <Project Path="Lanzador.Cli/Lanzador.Cli.csproj" />
+    <Project Path="Lanzador.Core/Lanzador.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../tests/Lanzador.Tests/Lanzador.Tests.csproj" />
+  </Folder>
 </Solution>

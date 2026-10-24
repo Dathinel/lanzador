@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\externo\rodaje\src\Rodaje.Packages\Rodaje.Packages.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- La clave pública del catálogo de Dathinel, la misma que va dentro de Rodaje; se toma del submódulo, no se copia. -->
+    <EmbeddedResource Include="..\..\externo\rodaje\src\Rodaje.App\Services\Packages\clave-catalogo.txt" LogicalName="Lanzador.clave-catalogo.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lanzador.Tests" />
+  </ItemGroup>
+
+</Project>

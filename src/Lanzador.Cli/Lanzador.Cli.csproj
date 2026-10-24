@@ -9,6 +9,13 @@
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Tamaño por delante de velocidad: es la primera descarga y no hace cálculo pesado. -->
+    <OptimizationPreference>Size</OptimizationPreference>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lanzador.Core\Lanzador.Core.csproj" />
+  </ItemGroup>
 
 </Project>

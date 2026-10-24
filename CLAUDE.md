@@ -7,8 +7,11 @@ Herramienta de IA aparte de Rodaje, con interfaz propia. Repositorio público `D
 - **.NET:** siempre con `build\dotnet.cmd <args>`; `build\preparar-entorno.ps1` deja el SDK y FFmpeg en `.entorno\`. Los dos llaman a los scripts de Rodaje del submódulo `externo/rodaje`: no se copian.
 - **Código de Rodaje:** por `ProjectReference` a `externo/rodaje/src/...`, nunca copiado. Mover el commit fijado del submódulo es un commit propio.
 - **Worktrees** en `.claude\worktrees\` (ignorado). Un commit por tarea y push.
+- **Publicar:** `build\dotnet.cmd publish src\Lanzador.Cli\Lanzador.Cli.csproj -c Release -o dist\Lanzador`.
 
 ## Estado (24-oct)
 
-- Fase 0 cerrada: esqueleto, licencia y `src\Lanzador.slnx` con un `Lanzador.Cli` vacío que compila y publica con AOT.
-- **Siguiente:** fase 1, la CLI que hace el trabajo, con pruebas (`..\PLAN.md` y `..\encargos\`).
+- Fase 0 cerrada: esqueleto, licencia y `src\Lanzador.slnx`.
+- Fase 1 cerrada: `Lanzador.Core` (`Instalador` sobre `Rodaje.Packages`: índice firmado, descarga reanudable, módulos y modelos compartidos en `Comun\`) y `Lanzador.Cli` AOT (6,1 MB) con `lista | instalar | actualizar | quitar`; 14 pruebas contra un servidor local. Cifras y pendientes en `docs/informe-fase-1.md`.
+- **Submódulo** en `913828a4` (rama `claude/indice-app` de Rodaje, `IndexEntryKind.App`, sin push ni PR todavía): cuando ese PR se una, mover el submódulo al commit de `main`.
+- **Siguiente:** fase 2, ventana WinUI 3 sobre `Lanzador.Core`; antes, decidir cómo las apps encuentran `Comun\modulos` (`..\PLAN.md`).

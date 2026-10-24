@@ -1,2 +1,1 @@
-Console.Error.WriteLine("Lanzador: fase 0, todavía sin funciones.");
-return 64;
+return await Lanzador.Core.Ordenes.EjecutarAsync(args, Console.Out, Console.Error).ConfigureAwait(false);
