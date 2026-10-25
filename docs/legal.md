@@ -6,7 +6,7 @@ No es asesoría legal: resume las licencias y lo que hay que comprobar antes de 
 
 GPL-3.0-only, con el texto oficial completo en [LICENSE](../LICENSE). La razón: Lanzador compila código de Rodaje (la descarga firmada de complementos, en el submódulo `externo/rodaje`), que es GPLv3. Rodaje y este programa tienen un solo titular (Dathinel), así que la elección de licencia es libre; GPLv3 es la coherente con el resto.
 
-**Términos adicionales de Rodaje.** El `LICENSE` de Rodaje añade, por la sección 7, un aviso de atribución en la interfaz («Basado en el editor de video de código abierto de Dathinel / Rodaje», con enlace). Ese término acompaña al código de Rodaje que se compila aquí (`Rodaje.Packages`). El Lanzador incluye atribución y enlace a Rodaje en `README.md` y en el `README.txt` del zip; **en la ventana todavía no** (pendiente, abajo).
+**Términos adicionales de Rodaje.** El `LICENSE` de Rodaje añade, por la sección 7, un aviso de atribución en la interfaz («Basado en el editor de video de código abierto de Dathinel / Rodaje», con enlace). Ese término acompaña al código de Rodaje que se compila aquí (`Rodaje.Packages`). El Lanzador incluye atribución y enlace a Rodaje en `README.md`, en el `README.txt` del zip, en las notas de cada release (término 2, canal de distribución) y en el «Acerca de» de la ventana (término 1).
 
 **Marca.** El nombre «Rodaje», su logotipo y su icono no se licencian con el código (`TRADEMARK.md` de Rodaje). Lanzador tiene su propia denominación, identificadores e iconos independientes.
 

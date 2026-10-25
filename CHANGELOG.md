@@ -2,8 +2,12 @@
 
 ## [1.0.0] - 2026-10-24
 
+Primera versión, publicada como prerelease: probada con pruebas automáticas y el exe publicado, pero la ventana no se ha usado aún con ratón (lo que juzga Daniel está en `docs/pruebas-a-mano.md`).
+
+Basado en el editor de video de código abierto de Dathinel / Rodaje (https://github.com/Dathinel/rodaje), un proyecto libre y gratuito: la descarga firmada de herramientas y modelos es código de Rodaje.
+
 ### Añadido
-- **Lanzador.App**: interfaz gráfica moderna en WinUI 3 compilada con Native AOT (7,4 MB, arranque en frío en < 0,8 s).
+- **Lanzador.App**: interfaz gráfica moderna en WinUI 3 compilada con Native AOT (7,68 MB, arranque en frío en < 0,7 s).
   - Tarjetas interactivas por herramienta (Subtitular, Rastrear).
   - Comprobación estricta de firma del catálogo con ECDSA P-256 antes de permitir cualquier descarga.
   - Indicadores de estado: no instalada, instalada, actualizable.
