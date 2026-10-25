@@ -1,0 +1,62 @@
+name: Release en borrador
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  borrador:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Descargar código fuente y submódulos
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Preparar entorno
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+
+      - name: Obtener versión
+        id: version
+        shell: pwsh
+        run: |
+          $propsPath = 'Directory.Build.props'
+          $props = [xml](Get-Content -LiteralPath $propsPath -Raw -Encoding UTF8)
+          $v = @($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0]
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Compilar y armar distribución
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Crear release en borrador en GitHub
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $tag = "v$env:VERSION"
+          $artefactos = @(
+            "dist/Lanzador-$env:VERSION-win-x64.zip",
+            "dist/catalogo-lanzador.json",
+            "dist/SHA256SUMS"
+          )
+          $instalador = "dist/Lanzador-$env:VERSION-instalador.exe"
+          if (Test-Path -LiteralPath $instalador) {
+            $artefactos += $instalador
+          }
+          gh release create $tag @artefactos --draft --target $env:GITHUB_SHA --title "Lanzador $env:VERSION" --notes-file "dist/notas-version.md"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

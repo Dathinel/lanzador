@@ -2,7 +2,7 @@
 
 El punto de entrada de las herramientas de IA de Dathinel para Windows: lista Subtitular y Rastrear, las descarga, comprueba su firma y las instala o actualiza, junto con los modelos de IA que necesitan.
 
-> En construcción: hay ventana (`Lanzador.exe`, WinUI 3 con Native AOT, 7,4 MB, abre en 0,8 s en frío) y línea de órdenes (`Lanzador.Cli lista | instalar <app> | actualizar [<app>] | quitar <app>`); el catálogo público todavía no lista herramientas. Van a `%LOCALAPPDATA%\Dathinel\Herramientas\<app>\<versión>` y lo compartido a `%LOCALAPPDATA%\Dathinel\Comun`.
+> **Estado**: Ventana WinUI 3 AOT (`Lanzador.exe`, 7,4 MB, abre en 0,8 s en frío), CLI AOT (`Lanzador.Cli.exe`, 6,2 MB), paquete autocontenido zip, entrada de catálogo firmado e instalador Inno Setup por usuario. Van a `%LOCALAPPDATA%\Dathinel\Herramientas\<app>\<versión>` y lo compartido a `%LOCALAPPDATA%\Dathinel\Comun`.
 
 ## Cómo funciona
 
@@ -13,16 +13,38 @@ El punto de entrada de las herramientas de IA de Dathinel para Windows: lista Su
 
 ## Cómo se ejecuta (desarrollo)
 
-```
+```powershell
 git clone --recursive https://github.com/Dathinel/lanzador
 cd lanzador
 powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
-build\dotnet.cmd build src\Lanzador.slnx
-build\dotnet.cmd publish src\Lanzador.App\Lanzador.App.csproj -c Release -o dist\Lanzador
+build\dotnet.cmd build src\Lanzador.slnx -c Release
+build\dotnet.cmd test src\Lanzador.slnx -c Release
 ```
 
-El SDK de .NET y FFmpeg se instalan en `.entorno\` con huella fijada, sin tocar nada global. Los scripts son los de Rodaje (submódulo `externo/rodaje`, fijado a un commit). Para no bajar el SDK otra vez se puede apuntar `RODAJE_ENTORNO` al `.entorno` de Rodaje.
+El SDK de .NET y FFmpeg se instalan en `.entorno\` con huella fijada, sin tocar nada global. Para no bajar el SDK otra vez se puede apuntar la variable de entorno `RODAJE_ENTORNO` al `.entorno` de Rodaje.
+
+## Distribución y publicación
+
+Para armar el paquete de distribución completo de forma local:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1
+```
+
+Esto genera en `dist\`:
+1. `Lanzador-<versión>-win-x64.zip`: paquete zip autocontenido con la App (`Lanzador.exe`), la CLI (`Lanzador.Cli.exe`), `LICENSE`, `LICENCIAS.md` y guía de uso.
+2. `Lanzador-<versión>-instalador.exe`: instalador portable por usuario compilado con Inno Setup 7 (`build\instalador\Lanzador.iss`).
+3. `catalogo-lanzador.json`: entrada tipo `app` para el catálogo de Rodaje con id `lanzador`, URL de release y SHA-256 del zip.
+4. `notas-version.md` y `SHA256SUMS`: notas de versión desde el `CHANGELOG.md` y sumas de verificación SHA-256 de todos los artefactos.
+
+### Firma del catálogo
+
+El script `build\catalogo-entrada.ps1` **no firma nada** por seguridad: deja la entrada en `dist\catalogo-lanzador.json`. Daniel incorpora esta entrada en el catálogo general y la firma con la clave privada ECDSA P-256 mediante `firmar-indice.ps1` del repositorio `Dathinel/rodaje-catalogo`.
+
+### Releases
+
+El flujo `.github/workflows/release.yml` se dispara manualmente por `workflow_dispatch` y crea exclusivamente una **release en borrador** (`gh release create --draft`) con los artefactos empaquetados. Nunca publica directamente.
 
 ## Licencia
 
-GPLv3, solo la versión 3 (`GPL-3.0-only`). Va con GPLv3 porque reutiliza código de Rodaje (la descarga firmada de complementos), que es GPLv3. Ver [LICENSE](LICENSE) y [LICENCIAS.md](LICENCIAS.md).
+GPLv3, solo la versión 3 (`GPL-3.0-only`). Va con GPLv3 porque reutiliza código de Rodaje (la descarga firmada de complementos), que es GPLv3: Lanzador está basado en el editor de video de código abierto de Dathinel / Rodaje (<https://github.com/Dathinel/rodaje>). Ver [LICENSE](LICENSE) y [LICENCIAS.md](LICENCIAS.md).
