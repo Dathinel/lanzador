@@ -10,3 +10,7 @@ Hecha por agy (gemini-3.8-flash) y verificada por Claude, que corrigió lo de ab
 - **Máquina limpia** (`%TEMP%\lanzador-prueba`, 240 archivos): `Lanzador.Cli.exe --help` sale con 0; `Lanzador.exe` sigue vivo a los 3 s con ventana «Lanzador» y sin archivo de error.
 - **YAML** con PyYAML: `ci.yml` (push y pull_request, submódulo, build Release `-warnaserror`, test) y `release.yml` (solo `workflow_dispatch`, `gh release create --draft`, nunca publica). En CI no hay Inno Setup: el instalador se omite con aviso.
 - **Legal:** `LICENCIAS.md` decía MIT para el Windows App SDK; son términos de Microsoft (como en Rodaje) y queda anotado el pendiente con la GPLv3. `legal.md` afirmaba atribución a Rodaje en la ventana: no existe; queda sin marcar para el pulido visual.
+
+## Probado con el ratón (Claude, 24-oct 21:20)
+
+Con el catálogo v8 publicado: la ventana lista Lanzador, Rastrear y Subtitular con versión y peso; «Instalar» en Rastrear descargó app, módulo de visión y modelos (24 s a 27 MB/s, etapa y tiempo restante visibles), quedó «1.0.0 (al día)» con «En disco: 532,9 MB (69,3 app, 463,6 compartido)» y botones Abrir/Quitar; «Abrir» arrancó el Rastrear instalado, cuyo CLI encontró el módulo por `Comun\modulos` (150 cuadros en 5 s). Pendiente menor: la tarjeta del propio Lanzador muestra una descripción genérica («Herramienta lanzador del catálogo firmado») porque el índice no trae descripción.
