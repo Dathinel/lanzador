@@ -14,7 +14,7 @@ GPL-3.0-only, con el texto oficial completo en [LICENSE](../LICENSE). La razón:
 
 - [x] **`LICENSE` con la GPLv3 completa y cabecera oficial:** Presente en la raíz del repositorio y copiado en el zip de distribución y en el instalador.
 - [x] **Crédito de Rodaje en la documentación (Sección 7, punto 2):** `README.md` y `README.txt` del zip con la frase y el enlace a `https://github.com/Dathinel/rodaje`.
-- [ ] **Crédito de Rodaje en la ventana (Sección 7, punto 1):** falta el aviso con enlace en la interfaz de `Lanzador.App` (pie o «Acerca de»). Entra con el pulido visual.
+- [x] **Crédito de Rodaje en la ventana (Sección 7, punto 1):** «Acerca de» en el pie de `Lanzador.App` con la frase literal y el enlace a `https://github.com/Dathinel/rodaje` (HyperlinkButton), más nombre, versión y GPLv3 del Lanzador.
 - [x] **Marca propia:** Nombre «Lanzador», identificador único en catálogo (`lanzador`), sin activos ni logotipos protegidos de la marca Rodaje.
 - [x] **`LICENCIAS.md` al día:** código propio, Rodaje por submódulo, .NET / Native AOT (MIT), Windows App SDK y WebView2 (términos de Microsoft, no MIT).
 - [ ] **Windows App SDK frente a la GPLv3:** las DLL de Microsoft del zip llevan términos propios; si la excepción de «System Libraries» las cubre es la misma consulta al abogado pendiente en `docs/legal.md` de Rodaje.

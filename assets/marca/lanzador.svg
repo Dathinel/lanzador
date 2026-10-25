@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Lanzador: una flecha de lanzamiento (arriba a la derecha) dentro de un círculo azul eléctrico, con una estela corta. -->
+  <circle cx="128" cy="128" r="120" fill="#1F5EFF"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M86 170 L170 86"/>
+    <path d="M110 86 H170 V146"/>
+  </g>
+  <g fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="16" stroke-linecap="round">
+    <path d="M62 150 L76 136"/>
+    <path d="M106 194 L120 180"/>
+  </g>
+</svg>

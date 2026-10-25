@@ -2,7 +2,7 @@
 
 El punto de entrada de las herramientas de IA de Dathinel para Windows: lista Subtitular y Rastrear, las descarga, comprueba su firma y las instala o actualiza, junto con los modelos de IA que necesitan.
 
-> **Estado**: Ventana WinUI 3 AOT (`Lanzador.exe`, 7,4 MB, abre en 0,8 s en frío), CLI AOT (`Lanzador.Cli.exe`, 6,2 MB), paquete autocontenido zip, entrada de catálogo firmado e instalador Inno Setup por usuario. Van a `%LOCALAPPDATA%\Dathinel\Herramientas\<app>\<versión>` y lo compartido a `%LOCALAPPDATA%\Dathinel\Comun`.
+> **Estado**: Ventana WinUI 3 AOT (`Lanzador.exe`, 7,7 MB, abre en 0,7 s en frío), CLI AOT (`Lanzador.Cli.exe`, 6,2 MB), paquete autocontenido zip, entrada de catálogo firmado e instalador Inno Setup por usuario. Van a `%LOCALAPPDATA%\Dathinel\Herramientas\<app>\<versión>` y lo compartido a `%LOCALAPPDATA%\Dathinel\Comun`.
 
 ## Cómo funciona
 

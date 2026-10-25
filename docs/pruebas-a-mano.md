@@ -76,3 +76,17 @@ El ejecutable listo para usar se encuentra en:
    - Comprueba que el total coincide con el contenido de la carpeta.
 2. Pulsa el botón **«Abrir carpeta»**.
    - Debe abrir el Explorador de Windows directamente en `%LOCALAPPDATA%\Dathinel\`.
+
+---
+
+## 8. Identidad (pulido visual, 24-oct)
+
+Capturas de referencia en `docs/capturas/` (tema oscuro). Lo que solo tú puedes juzgar:
+
+1. **Tres segundos:** al abrir, ¿se nota que es el Lanzador y no Rodaje ni sus hermanas? Flecha azul en círculo (icono de ventana y barra de tareas), «Lanzador» en Bahnschrift y el lema «Las herramientas, listas» en azul.
+2. **Tema claro:** cambia Windows a claro con la ventana abierta. Fondo gris muy claro, tarjetas blancas con sombra suave, botones azul eléctrico con texto blanco. En oscuro: gris azulado, botones azul claro con texto oscuro. ¿Se lee cómodo en los dos? (en oscuro está comprobado; el claro no se pudo capturar).
+3. **Estado vacío:** sin entradas `app` en el catálogo debe verse el anillo con la flecha y «Todavía no hay herramientas en el catálogo», no un texto gris suelto.
+4. **Progreso con vida:** al instalar, la barra avanza suave (no a saltos), la etapa va en azul («Descargando», «Extrayendo», «Hecho»), a la derecha «0:42 · quedan ~1:10». Al terminar, el tic azul junto al nombre debe aparecer con un pequeño rebote antes de que la tarjeta se recargue.
+5. **Ventana:** mueve y redimensiona, cierra y vuelve a abrir: debe aparecer donde la dejaste (también maximizada). Intenta hacerla más pequeña de 640x480: no debe dejar.
+6. **Teclado:** con Tab el foco debe verse en los botones y en «Acerca de» (recuadro de foco de WinUI).
+7. **Acerca de:** abre el diálogo del pie y pulsa el enlace de Rodaje: debe abrir `github.com/Dathinel/rodaje` en el navegador.

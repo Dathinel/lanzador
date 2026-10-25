@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botones y enlaces de acento en azul propio. En App.Resources no los pisa (los estilos de WinUI resuelven antes sus propios
+     recursos), así que se mezcla desde ms-appx en la raíz de la ventana y en el contenido de cada diálogo (una instancia por sitio). -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#1F5EFF" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#3B74FF" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#1A4FD6" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#1F5EFF" />
+            <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#1A4FD6" />
+            <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#1A4FD6" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#6D9BFF" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#86ACFF" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#5584EA" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="#0B1630" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#0B1630" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#0B1630" />
+            <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#6D9BFF" />
+            <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#86ACFF" />
+            <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#86ACFF" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast" />
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

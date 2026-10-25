@@ -14,3 +14,7 @@ Qué lleva Lanzador y con qué licencia. Ningún binario ni modelo de terceros v
 | FFmpeg, compilación LGPL de Rodaje | LGPL v3 | Solo en `.entorno\ffmpeg` para desarrollo y pruebas; el Lanzador **no** lo distribuye: lo comparten las herramientas en `%LOCALAPPDATA%\Dathinel\Comun` |
 
 El Lanzador no trae modelos: descarga las herramientas y sus modelos, cada uno con su propio `LICENCIAS.md`.
+
+## Marca y tipografía
+
+El icono y el nombre del Lanzador (`assets/marca/`, dibujo propio) van con el resto del código bajo GPL-3.0-only. La tipografía de los títulos es Bahnschrift, la que trae Windows 10 y 11: no se incluye ningún archivo de fuente.

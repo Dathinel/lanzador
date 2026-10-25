@@ -8,6 +8,7 @@
     <RootNamespace>Lanzador.App</RootNamespace>
     <AssemblyName>Lanzador</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\marca\lanzador.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

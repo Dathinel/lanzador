@@ -8,6 +8,74 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Identidad del Lanzador: azul eléctrico sobre blanco/gris claro; en oscuro, azul claro sobre gris azulado. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AcentoBrush" Color="#1F5EFF" />
+                    <SolidColorBrush x:Key="AcentoSuaveBrush" Color="#2E1F5EFF" />
+                    <SolidColorBrush x:Key="AcentoTextoBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="FondoVentanaBrush" Color="#F4F6FA" />
+                    <SolidColorBrush x:Key="TarjetaFondoBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TarjetaBordeBrush" Color="#E1E6EF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="AcentoBrush" Color="#6D9BFF" />
+                    <SolidColorBrush x:Key="AcentoSuaveBrush" Color="#3A6D9BFF" />
+                    <SolidColorBrush x:Key="AcentoTextoBrush" Color="#0B1630" />
+                    <SolidColorBrush x:Key="FondoVentanaBrush" Color="#1B2029" />
+                    <SolidColorBrush x:Key="TarjetaFondoBrush" Color="#242A35" />
+                    <SolidColorBrush x:Key="TarjetaBordeBrush" Color="#343C4B" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="AcentoBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="AcentoSuaveBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="AcentoTextoBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="FondoVentanaBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="TarjetaFondoBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="TarjetaBordeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Bahnschrift viene con Windows 10 y 11: sans geométrica sin añadir un byte al exe. -->
+            <FontFamily x:Key="FuenteTitulo">Bahnschrift, Segoe UI Variable Display, Segoe UI</FontFamily>
+
+            <!-- Estilos con ThemeResource en los setters: las tarjetas creadas en código cambian de tema con Windows. -->
+            <Style x:Key="Tarjeta" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource TarjetaFondoBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource TarjetaBordeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="12" />
+                <Setter Property="Padding" Value="24" />
+            </Style>
+            <Style x:Key="TituloTarjeta" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource FuenteTitulo}" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="TextoSecundario" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="TextoAcento" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource AcentoBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="BarraPista" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource AcentoSuaveBrush}" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Height" Value="8" />
+            </Style>
+            <Style x:Key="BarraRelleno" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource AcentoBrush}" />
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+            <Style x:Key="Tic" TargetType="FontIcon">
+                <Setter Property="Glyph" Value="&#xE73E;" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="Foreground" Value="{ThemeResource AcentoBrush}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
