@@ -105,8 +105,10 @@ public sealed class DistribucionTests
             string consola = proceso.StandardOutput.ReadToEnd() + proceso.StandardError.ReadToEnd();
             proceso.WaitForExit();
 
-            Assert.NotEqual(0, proceso.ExitCode);
-            Assert.Contains("No se encontró el archivo zip", consola, StringComparison.Ordinal);
+            Assert.Equal(1, proceso.ExitCode);
+            // Sin acentos en lo que se busca: la consola de Windows PowerShell puede no sacarlos en UTF-8.
+            Assert.Contains("Error: No se encontr", consola, StringComparison.Ordinal);
+            Assert.Contains("el archivo zip de distribuci", consola, StringComparison.Ordinal);
             Assert.False(File.Exists(Path.Combine(carpeta, "salida.json")));
         }
         finally

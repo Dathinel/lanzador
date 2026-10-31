@@ -16,6 +16,9 @@ param(
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
+# Un error sale como una sola línea «Error: …» en stderr y código 1, igual en pwsh 7 y en 5.1 (la vista «concisa» de pwsh parte el mensaje en varias líneas).
+try {
+
 $Raiz = Split-Path -Parent $PSScriptRoot
 
 if (-not $Version) {
@@ -86,3 +89,8 @@ $jsonTexto = @"
 [Console]::WriteLine("  URL: $url")
 [Console]::WriteLine("  SHA256: $sha256")
 [Console]::WriteLine("  Tamaño: $([math]::Round($size / 1MB, 2)) MB")
+
+} catch {
+    [Console]::Error.WriteLine("Error: $($_.Exception.Message)")
+    exit 1
+}
