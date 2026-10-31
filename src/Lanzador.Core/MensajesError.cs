@@ -3,6 +3,37 @@ using Rodaje.Packages.Download;
 
 namespace Lanzador.Core;
 
+/// <summary>
+/// El catálogo no pasó la verificación (firma que no corresponde, más viejo que uno ya visto o demasiado grande):
+/// no se lee ni una entrada y no se ofrece nada para instalar. El mensaje ya va en español para la persona.
+/// </summary>
+public sealed class CatalogoNoVerificadoException : PackageDownloadException
+{
+    public const string Mensaje = "La firma del catálogo no es válida: el catálogo no es el que publicó Dathinel o llegó dañado. Por seguridad no se ofrece nada para instalar.";
+
+    public CatalogoNoVerificadoException()
+        : base(Mensaje)
+    {
+    }
+
+    public CatalogoNoVerificadoException(string message)
+        : base(message)
+    {
+    }
+
+    public CatalogoNoVerificadoException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>Envuelve el rechazo de Rodaje con el mensaje del Lanzador; el detalle técnico queda en <see cref="Exception.InnerException"/>.</summary>
+    public static CatalogoNoVerificadoException Desde(DownloadVerificationException rechazo)
+    {
+        ArgumentNullException.ThrowIfNull(rechazo);
+        return new CatalogoNoVerificadoException(Mensaje, rechazo);
+    }
+}
+
 /// <summary>Convierte excepciones técnicas en mensajes claros en español para la interfaz.</summary>
 public static class MensajesError
 {
@@ -10,12 +41,17 @@ public static class MensajesError
     {
         ArgumentNullException.ThrowIfNull(ex);
 
+        if (ex is CatalogoNoVerificadoException catalogo)
+        {
+            return catalogo.Message;
+        }
+
         if (ex is DownloadVerificationException)
         {
             return "La firma del catálogo o de los archivos descargados no es válida.";
         }
 
-        if (ex is HttpRequestException || ex is SocketException)
+        if (EsFalloDeRed(ex))
         {
             return "Sin conexión con el catálogo. Comprueba tu conexión a internet.";
         }
@@ -58,4 +94,30 @@ public static class MensajesError
 
         return "Ocurrió un error al procesar la herramienta. Vuelve a intentarlo.";
     }
+
+    /// <summary>
+    /// Para el panel que ocupa el sitio de la lista cuando el catálogo no se pudo cargar: un título corto y el detalle
+    /// con qué hacer. Nunca deja la lista vacía sin decir por qué.
+    /// </summary>
+    public static (string Titulo, string Detalle) DescribirFalloDelCatalogo(Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+
+        if (ex is CatalogoNoVerificadoException catalogo)
+        {
+            return ("El catálogo no se puede verificar", $"{catalogo.Message} Pulsa «Buscar actualizaciones» para volver a intentarlo.");
+        }
+
+        if (EsFalloDeRed(ex))
+        {
+            return ("Sin conexión con el catálogo", "No se pudo descargar el catálogo de Dathinel. Comprueba tu conexión a internet y pulsa «Buscar actualizaciones».");
+        }
+
+        return ("No se pudo leer el catálogo", $"{Describir(ex)} No se ofrecen aplicaciones para instalar hasta que se pueda leer.");
+    }
+
+    /// <summary>Una excepción de red, también cuando Rodaje la envolvió en <see cref="PackageDownloadException"/> («No hay conexión con GitHub»).</summary>
+    private static bool EsFalloDeRed(Exception ex) =>
+        ex is HttpRequestException or SocketException
+        || (ex is PackageDownloadException and not DownloadVerificationException && ex.InnerException is (HttpRequestException or SocketException));
 }

@@ -2,6 +2,15 @@
 
 ## Sin publicar
 
+### Añadido
+- Cada tarjeta muestra la versión instalada junto a la del catálogo («Instalada 1.0.0 · Disponible 1.1.0») y el botón «Actualizar» solo aparece cuando la instalada es más vieja; una instalada más nueva que el catálogo cuenta como al día.
+- «Buscar actualizaciones» al abrir (y con el botón de la cabecera, antes «Actualizar catálogo»): si hay versiones nuevas sale un aviso discreto que las nombra («Hay una actualización: Subtitular 1.0.0 → 1.1.0»).
+- Progreso de descarga con velocidad y tiempo restante medidos a la velocidad real («12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)»), también en la CLI; la regla de tres sobre la fracción queda solo de respaldo.
+- Reanudar una descarga cortada: al cancelar, lo bajado se queda en `Comun\descargas\<huella>.zip.parcial` y la tarjeta pasa a «Reanudar descarga» (o «Reanudar actualización») diciendo cuánto hay ya; la siguiente vez se pide solo lo que falta con `Range` (lo hace `FileDownloader` de Rodaje) y se comprueba la huella entera igual.
+- «Abrir» solo aparece cuando la app instalada trae un ejecutable que abrir.
+- «Quitar» pide confirmación diciendo qué carpeta se borra, cuánto ocupa y que los módulos y modelos compartidos se quedan; «Cancelar» es el botón por defecto.
+- Un catálogo con firma inválida (o sin conexión) ya no deja la lista vacía en silencio: en su sitio sale un panel con el motivo en español («La firma del catálogo no es válida: el catálogo no es el que publicó Dathinel o llegó dañado. Por seguridad no se ofrece nada para instalar») y «Volver a intentar». La verificación de firma y huella al instalar no cambia.
+
 ### Corregido
 - La CI de `main` fallaba en la prueba de `catalogo-entrada.ps1`: el script usaba `Get-FileHash`, `ConvertTo-Json`, `Write-Host` y `New-Object`, que Windows PowerShell 5.1 no encuentra cuando lo lanza pwsh 7 (hereda un `PSModulePath` con el que no carga `Microsoft.PowerShell.Utility`). Ahora calcula la huella y escribe el JSON con .NET, y la prueba comprueba la forma de la entrada (que `SignedIndex` la acepte, huella de 64 hexadecimales, peso mayor que cero) y la huella del zip de prueba, sin depender de ninguna release.
 

@@ -9,7 +9,7 @@ El punto de entrada de las herramientas de IA de Dathinel para Windows: lista Su
 - Lee el índice firmado de `Dathinel/rodaje-catalogo` y rechaza cualquier entrada si la firma no cuadra.
 - Baja cada herramienta (zip autocontenido, sin instalador) y sus modelos, con reanudación y SHA-256 comprobado, y los deja en una carpeta del usuario.
 - Comparte entre herramientas lo que es común (FFmpeg, módulos y modelos), para no bajarlo dos veces.
-- La ventana muestra una tarjeta por herramienta (versión, peso de descarga, espacio que ocupa y lo compartido), con Instalar, Abrir, Actualizar, Quitar y Cancelar, y nunca ofrece instalar si el índice no se verifica.
+- La ventana muestra una tarjeta por herramienta (versión instalada y disponible, peso de descarga, espacio que ocupa y lo compartido), con Instalar o Reanudar, Abrir, Actualizar (solo si hay versión nueva), Quitar (con confirmación que dice qué carpeta borra) y Cancelar; busca actualizaciones al abrir y avisa discreto si las hay, y si el índice no se verifica lo dice en español en vez de ofrecer nada.
 
 ## Cómo se ejecuta (desarrollo)
 
