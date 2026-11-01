@@ -37,6 +37,10 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 if (-not $Salida) {
     $Salida = Join-Path $Raiz 'dist\catalogo-lanzador.json'
 }
+# .NET resuelve las rutas relativas contra el directorio del proceso, no contra el de PowerShell.
+if (-not [System.IO.Path]::IsPathRooted($Salida)) {
+    $Salida = Join-Path $PWD.Path $Salida
+}
 
 $dirSalida = Split-Path -Parent $Salida
 if ($dirSalida -and -not (Test-Path -LiteralPath $dirSalida)) {
