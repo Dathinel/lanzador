@@ -1,4 +1,4 @@
-using Rodaje.Packages;
+﻿using Rodaje.Packages;
 
 namespace Lanzador.Core;
 
@@ -29,6 +29,8 @@ public enum EstadoTarjeta
 /// <summary>Información completa para pintar una tarjeta de herramienta en la interfaz.</summary>
 /// <param name="Ejecutable">El exe que abre «Abrir», o <c>null</c> si no está instalada o el zip no traía ninguno.</param>
 /// <param name="DescargaParcialBytes">Lo que quedó en <c>Comun\descargas</c> de una descarga cortada de la versión disponible; se reanuda desde ahí.</param>
+/// <param name="ZipDescargado">El zip de la versión disponible ya está entero en <c>Comun\descargas</c> (falló la extracción): no hay nada que bajar.</param>
+/// <param name="InstalacionIncompleta">La app está extraída pero faltan módulos o modelos del manifiesto (se cortó después del zip): «Completar instalación».</param>
 public sealed record TarjetaHerramienta(
     string Id,
     string Nombre,
@@ -39,7 +41,9 @@ public sealed record TarjetaHerramienta(
     EspacioInstalada? EspacioInstalada,
     EstadoTarjeta Estado,
     string? Ejecutable = null,
-    long DescargaParcialBytes = 0)
+    long DescargaParcialBytes = 0,
+    bool ZipDescargado = false,
+    bool InstalacionIncompleta = false)
 {
     public bool PuedeInstalar => Estado == EstadoTarjeta.NoInstalada;
     public bool PuedeAbrir => Estado != EstadoTarjeta.NoInstalada && Ejecutable is not null;
@@ -53,13 +57,16 @@ public sealed record TarjetaHerramienta(
     {
         EstadoTarjeta.NoInstalada => $"Versión {VersionDisponible}",
         EstadoTarjeta.Instalada => $"Versión {VersionInstalada} (al día)",
+        EstadoTarjeta.Actualizable when InstalacionIncompleta => $"Versión {VersionInstalada} (faltan módulos o modelos)",
         EstadoTarjeta.Actualizable => $"Instalada {VersionInstalada} · Disponible {VersionDisponible}",
         _ => VersionDisponible.ToString()
     };
 
-    public string TextoDescarga => PuedeReanudar
-        ? $"Descarga: {Instalador.Peso(TamanoDescarga)} · {Instalador.Peso(Math.Min(DescargaParcialBytes, TamanoDescarga))} ya bajados, se reanudará"
-        : $"Descarga: {Instalador.Peso(TamanoDescarga)}";
+    public string TextoDescarga => ZipDescargado
+        ? $"Descarga: {Instalador.Peso(TamanoDescarga)} · ya descargado"
+        : PuedeReanudar
+            ? $"Descarga: {Instalador.Peso(TamanoDescarga)} · {Instalador.Peso(Math.Min(DescargaParcialBytes, TamanoDescarga))} ya bajados, se reanudará"
+            : $"Descarga: {Instalador.Peso(TamanoDescarga)}";
 
     public string TextoEspacio => EspacioInstalada switch
     {
@@ -67,9 +74,18 @@ public sealed record TarjetaHerramienta(
         _ => $"En disco: {EspacioInstalada.Formatear()}"
     };
 
-    public string TextoInstalar => PuedeReanudar ? "Reanudar descarga" : "Instalar";
+    public string TextoInstalar => ZipDescargado ? "Instalar (ya descargado)" : PuedeReanudar ? "Reanudar descarga" : "Instalar";
 
-    public string TextoActualizar => PuedeReanudar ? "Reanudar actualización" : "Actualizar";
+    public string TextoActualizar => InstalacionIncompleta ? "Completar instalación"
+        : ZipDescargado ? "Actualizar (ya descargado)"
+        : PuedeReanudar ? "Reanudar actualización"
+        : "Actualizar";
+
+    /// <summary>Lo que dice la tarjeta recién recargada tras cancelar: qué quedó y qué botón sigue.</summary>
+    public string TextoCancelada => InstalacionIncompleta ? "Instalación cancelada. Lo ya bajado se guarda: pulsa «Completar instalación» para seguir."
+        : ZipDescargado ? "Descarga cancelada. El zip ya estaba completo: pulsa «Instalar» para extraerlo."
+        : PuedeReanudar ? "Descarga cancelada. Lo ya bajado se guarda: pulsa «Reanudar» para seguir donde quedó."
+        : "Descarga cancelada.";
 
     /// <summary>Carpeta que borra «Quitar»: <c>Herramientas\&lt;id&gt;</c>.</summary>
     public string CarpetaInstalada(Carpetas carpetas)
@@ -98,7 +114,8 @@ public static class Actualizaciones
     public static string? Aviso(IReadOnlyList<TarjetaHerramienta> tarjetas)
     {
         ArgumentNullException.ThrowIfNull(tarjetas);
-        var pendientes = tarjetas.Where(t => t.Estado == EstadoTarjeta.Actualizable).ToList();
+        // Una instalación a medias es Actualizable para que el botón vuelva a entrar, pero no es una versión nueva.
+        var pendientes = tarjetas.Where(t => t.Estado == EstadoTarjeta.Actualizable && !t.InstalacionIncompleta).ToList();
         if (pendientes.Count == 0)
         {
             return null;
@@ -152,17 +169,13 @@ public sealed record ProgresoDetallado(
 
     public string FormatearVelocidad() => $"{Instalador.Peso((long)Math.Max(0, VelocidadBytesPorSegundo))}/s";
 
-    /// <summary>«subtitular: 12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)», o solo la fase si no hay bytes.</summary>
-    public string TextoProgreso()
-    {
-        if (BytesTotales <= 0)
-        {
-            return Fase;
-        }
+    /// <summary>« (2.3 MB/s · quedan ~0:07)», « (2.3 MB/s)» sin tiempo, o vacío sin velocidad: el único sitio que arma ese sufijo.</summary>
+    public string TextoRitmo() => VelocidadBytesPorSegundo <= 0 ? ""
+        : TiempoRestante is { } restante ? $" ({FormatearVelocidad()} · quedan ~{Tiempos.Formatear(restante)})"
+        : $" ({FormatearVelocidad()})";
 
-        string ritmo = VelocidadBytesPorSegundo > 0
-            ? TiempoRestante is { } restante ? $" ({FormatearVelocidad()} · quedan ~{Tiempos.Formatear(restante)})" : $" ({FormatearVelocidad()})"
-            : "";
-        return $"{Archivo}: {Instalador.Peso(BytesRecibidos)} de {Instalador.Peso(BytesTotales)}{ritmo}";
-    }
+    /// <summary>«subtitular: 12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)», o solo la fase si no hay bytes.</summary>
+    public string TextoProgreso() => BytesTotales <= 0
+        ? Fase
+        : $"{Archivo}: {Instalador.Peso(BytesRecibidos)} de {Instalador.Peso(BytesTotales)}{TextoRitmo()}";
 }
