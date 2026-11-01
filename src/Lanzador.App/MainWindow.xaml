@@ -56,6 +56,8 @@
                     <HyperlinkButton Grid.Column="2" Content="Más tarde" Click="OnMasTardeClick" VerticalAlignment="Center" />
                 </Grid>
             </Border>
+            <!-- Sin red con herramientas instaladas: las tarjetas salen del disco (solo Abrir y Quitar) y esta franja lo dice -->
+            <InfoBar x:Name="AvisoSinConexion" IsOpen="False" IsClosable="False" Severity="Warning" Title="Sin conexión" />
             <InfoBar x:Name="AvisoIndice" IsOpen="False" IsClosable="True" Severity="Error" />
             <InfoBar x:Name="AvisoActualizaciones" IsOpen="False" IsClosable="True" Severity="Informational" Title="Actualizaciones" />
         </StackPanel>

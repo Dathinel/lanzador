@@ -118,3 +118,15 @@ La lógica está en `ActualizacionesTests` y `ComprobadorLanzadorTests`; aquí l
 5. **Más tarde:** púlsalo: la franja desaparece y en `%LOCALAPPDATA%\Dathinel\Lanzador\ajustes.json` queda `versionDescartada: "9.9.9"`. Cierra y abre el Lanzador: no vuelve a salir. Con «Buscar actualizaciones» sí sale, porque se pidió a mano.
 6. **24 h:** con la franja ya vista, cierra y abre: no se consulta GitHub otra vez (la hora de `ultimaConsultaLanzador` en `ajustes.json` no cambia) hasta pasadas 24 h. Sin red, al abrir no debe salir nada ni tardar más: la consulta va fuera del hilo de la ventana y se rinde a los 5 s.
 7. **Acerca de:** el interruptor «Avisar cuando haya una versión nueva» viene activado; apágalo y en `ajustes.json` queda `avisarVersionNueva: false`; al abrir ya no se consulta. El enlace «Buscar actualizaciones» cierra el diálogo y busca al momento (también el catálogo): con todo al día sale el aviso «No hay nada nuevo: el Lanzador y las herramientas están al día.»; sin red, «Las herramientas están al día. No se pudo consultar si hay un Lanzador nuevo; inténtalo más tarde.»; con herramientas viejas, las nombra como antes.
+
+---
+
+## 11. Sin red, «Quitar» con descargas y versión más nueva que el catálogo (sin publicar)
+
+La lógica está en `SinRedYQuitarTests`; aquí lo que solo se ve con la ventana.
+
+1. **Sin red con instaladas:** con Subtitular instalada, desconecta la red y abre el Lanzador. Bajo la cabecera sale una franja amarilla «Sin conexión» («No se pudo leer el catálogo de Dathinel. Las herramientas instaladas se pueden abrir y quitar…») y la tarjeta de Subtitular con «Versión 1.0.0 (instalada)», «Sin conexión: no se sabe si hay una versión nueva», el espacio en disco de siempre y solo «Abrir» y «Quitar». Nada de «Instalar», «Actualizar», recuento ni aviso de actualizaciones. «Abrir» abre la app. Vuelve a conectar y pulsa «Buscar actualizaciones»: la franja desaparece y la tarjeta vuelve a decir «(al día)» o «Actualizar a X».
+2. **Sin red y sin nada instalado:** el panel «Sin conexión con el catálogo» de siempre, con «Volver a intentar».
+3. **Quitar con descargas:** cancela una actualización a mitad (queda `Comun\descargas\<huella>.zip.parcial`) y pulsa «Quitar»: el diálogo añade «También se borra lo descargado de la versión 1.1.0 que quedó en «…\Comun\descargas».» y, al confirmar, desaparecen la carpeta de la app y ese `.parcial`; los `.parcial` de otras herramientas y `Comun\modulos` y `Comun\modelos` siguen ahí. Sin red, «Quitar» borra solo la carpeta.
+4. **Más nueva que el catálogo:** crea a mano `Herramientas\subtitular\9.0.0` con un `Subtitular.exe` dentro. La tarjeta dice «Instalada 9.0.0, más nueva que el catálogo (1.0.0)» con «Abrir» y «Quitar», sin «Actualizar» ni «Instalar», y sin aviso de actualizaciones. En la CLI, `lanzador lista` termina en «instalada 9.0.0, más nueva que el catálogo (1.0.0)».
+5. **CLI con firma inválida:** `Lanzador.Cli.exe lista --indice <índice con .sig de otra clave>` escribe una sola línea: «Error: La firma del catálogo no es válida; no se instala nada.» y sale con 2.

@@ -87,7 +87,13 @@ public static class Ordenes
                 case "lista":
                     foreach (Herramienta h in await instalador.ListaAsync(ct).ConfigureAwait(false))
                     {
-                        string estado = h.Instalada is null ? "no instalada" : h.Instalada.Equals(h.Version) ? "instalada" : $"instalada {h.Instalada}, hay {h.Version}";
+                        string estado = h.Instalada is null ? "no instalada"
+                            : h.Instalada.CompareTo(h.Version) switch
+                            {
+                                0 => "instalada",
+                                < 0 => $"instalada {h.Instalada}, hay {h.Version}",
+                                _ => $"instalada {h.Instalada}, más nueva que el catálogo ({h.Version})",
+                            };
                         await salida.WriteLineAsync($"{h.Id}\t{h.Version}\t{Instalador.Peso(h.Size)}\t{estado}").ConfigureAwait(false);
                     }
 
@@ -103,7 +109,7 @@ public static class Ordenes
                     await salida.WriteLineAsync(cambios.Count == 0 ? "Todo al día." : string.Join(Environment.NewLine, cambios.Select(c => $"{c.Id}: {c.De} → {c.A}"))).ConfigureAwait(false);
                     break;
                 default:
-                    instalador.Quitar(app!);
+                    await instalador.QuitarAsync(app!, ct).ConfigureAwait(false);
                     await salida.WriteLineAsync($"{app} quitada; los módulos y modelos comunes se quedan en {carpetas.Comun}.").ConfigureAwait(false);
                     break;
             }
@@ -119,6 +125,12 @@ public static class Ordenes
         {
             progreso.Cerrar();
             return Fallo(error, ex.Message, 1);
+        }
+        catch (CatalogoNoVerificadoException)
+        {
+            // El párrafo de la ventana no cabe en una línea de consola.
+            progreso.Cerrar();
+            return Fallo(error, CatalogoNoVerificadoException.MensajeCorto, 2);
         }
         catch (PackageDownloadException ex)
         {
@@ -150,7 +162,7 @@ public static class Ordenes
         w.WriteLine("  lista                 Herramientas del catálogo: versión, peso y si está instalada");
         w.WriteLine("  instalar <app>        Instala la versión más nueva con sus módulos y modelos");
         w.WriteLine("  actualizar [<app>]    Actualiza esa herramienta o todas las instaladas");
-        w.WriteLine("  quitar <app>          Borra esa herramienta; lo común se queda");
+        w.WriteLine("  quitar <app>          Borra esa herramienta y sus descargas a medias; lo común se queda");
         w.WriteLine("Opciones:");
         w.WriteLine("  --indice <url|ruta>   Índice firmado (por defecto el catálogo de Dathinel)");
         w.WriteLine("  --destino <carpeta>   Dónde van las herramientas (por defecto %LOCALAPPDATA%\\Dathinel\\Herramientas)");
