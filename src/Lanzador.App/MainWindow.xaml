@@ -35,11 +35,27 @@
                 <TextBlock Text="Lanzador" FontFamily="{StaticResource FuenteTitulo}" FontSize="32" FontWeight="SemiBold" LineHeight="36" />
                 <TextBlock Text="Las herramientas, listas" FontFamily="{StaticResource FuenteTitulo}" FontSize="16" Style="{StaticResource TextoAcento}" />
             </StackPanel>
-            <Button Grid.Column="2" x:Name="BotonRefrescar" Content="Buscar actualizaciones" Click="OnRefrescarClick" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <!-- Recuento discreto («2 actualizaciones») solo cuando hay más de una herramienta con versión nueva -->
+                <TextBlock x:Name="TextoRecuento" Visibility="Collapsed" Style="{StaticResource TextoAcento}" VerticalAlignment="Center" />
+                <Button x:Name="BotonRefrescar" Content="Buscar actualizaciones" Click="OnRefrescarClick" VerticalAlignment="Center" />
+            </StackPanel>
         </Grid>
 
-        <!-- Avisos: errores de la ventana y, discreto, «hay actualizaciones» al abrir o al buscar -->
+        <!-- Avisos: franja discreta de «Lanzador X disponible», errores de la ventana y «hay actualizaciones» al abrir o al buscar -->
         <StackPanel Grid.Row="1" Spacing="8" Margin="32,0,32,8">
+            <Border x:Name="FranjaLanzador" Visibility="Collapsed" Background="{ThemeResource AcentoSuaveBrush}" CornerRadius="8" Padding="16,6">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TextoFranja" Style="{StaticResource TextoAcento}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <HyperlinkButton x:Name="EnlaceNovedades" Grid.Column="1" Content="Ver novedades" VerticalAlignment="Center" />
+                    <HyperlinkButton Grid.Column="2" Content="Más tarde" Click="OnMasTardeClick" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
             <InfoBar x:Name="AvisoIndice" IsOpen="False" IsClosable="True" Severity="Error" />
             <InfoBar x:Name="AvisoActualizaciones" IsOpen="False" IsClosable="True" Severity="Informational" Title="Actualizaciones" />
         </StackPanel>

@@ -115,7 +115,7 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
         TarjetaHerramienta alDia = Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.Instalada);
         Assert.Equal("Versión 1.0.0 (al día)", alDia.TextoVersion);
         Assert.False(alDia.PuedeActualizar);
-        Assert.Equal("Actualizar", alDia.TextoActualizar);
+        Assert.Equal("Actualizar a 1.0.0", alDia.TextoActualizar);
 
         TarjetaHerramienta vieja = Tarjeta("1.0.0", "1.1.0", EstadoTarjeta.Actualizable);
         Assert.Equal("Instalada 1.0.0 · Disponible 1.1.0", vieja.TextoVersion);
