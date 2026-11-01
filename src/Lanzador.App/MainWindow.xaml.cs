@@ -27,20 +27,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ColocarVentana();
 
-        string indice = Instalador.IndiceDeDathinel.AbsoluteUri;
-        string? clave = null;
-        Carpetas carpetas = Carpetas.PorDefecto();
-
-        string[] args = Environment.GetCommandLineArgs();
-        for (int i = 1; i < args.Length; i++)
-        {
-            string arg = args[i];
-            string? val = i + 1 < args.Length ? args[i + 1] : null;
-            if (arg == "--indice" && val is not null) { indice = val; i++; }
-            else if (arg == "--clave" && val is not null) { clave = val; i++; }
-            else if (arg == "--destino" && val is not null) { carpetas = carpetas with { Herramientas = val }; i++; }
-            else if (arg == "--comun" && val is not null) { carpetas = carpetas with { Comun = val }; i++; }
-        }
+        OpcionesComunes opciones = OpcionesComunes.Parsear(Environment.GetCommandLineArgs()[1..]);
 
         _http = new HttpClient(new SocketsHttpHandler
         {
@@ -49,7 +36,7 @@ public sealed partial class MainWindow : Window
             AutomaticDecompression = DecompressionMethods.None
         });
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Lanzador/{Instalador.Version}");
-        _instalador = new Instalador(carpetas, indice, clave, _http);
+        _instalador = new Instalador(opciones.Carpetas, opciones.Indice, opciones.Clave, _http);
         _ajustes = Ajustes.Cargar(Ajustes.RutaPorDefecto);
         _comprobador = new ComprobadorLanzador(new FuenteReleasesGitHub(_http, Instalador.Version), Instalador.Version);
 
@@ -341,7 +328,8 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            TarjetaHerramienta? nueva = (await _instalador.ObtenerTarjetasAsync(refrescar: false)).FirstOrDefault(t => t.Id == id);
+            CargaDeTarjetas carga = await _instalador.CargarTarjetasAsync(refrescar: false);
+            TarjetaHerramienta? nueva = carga.TarjetaParaRepintar(id);
             int indice = ListaTarjetas.Children.IndexOf(vieja);
             if (nueva is null || indice < 0)
             {

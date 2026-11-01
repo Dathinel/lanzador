@@ -34,6 +34,7 @@ public enum EstadoTarjeta
 /// <param name="ZipDescargado">El zip de la versión disponible ya está entero en <c>Comun\descargas</c> (falló la extracción): no hay nada que bajar.</param>
 /// <param name="InstalacionIncompleta">La app está extraída pero faltan módulos o modelos del manifiesto (se cortó después del zip): «Completar instalación».</param>
 /// <param name="SinCatalogo">La tarjeta sale solo de lo que hay en disco (sin red): <paramref name="VersionDisponible"/> es la instalada y no se sabe si hay versión nueva.</param>
+/// <param name="DescargasDeLaAppBytes">Peso de los zips y parciales de todas las versiones de la app presentes en el índice.</param>
 public sealed record TarjetaHerramienta(
     string Id,
     string Nombre,
@@ -47,7 +48,8 @@ public sealed record TarjetaHerramienta(
     long DescargaParcialBytes = 0,
     bool ZipDescargado = false,
     bool InstalacionIncompleta = false,
-    bool SinCatalogo = false)
+    bool SinCatalogo = false,
+    long DescargasDeLaAppBytes = 0)
 {
     public bool PuedeInstalar => Estado == EstadoTarjeta.NoInstalada;
     public bool PuedeAbrir => Estado != EstadoTarjeta.NoInstalada && Ejecutable is not null;
@@ -116,8 +118,9 @@ public sealed record TarjetaHerramienta(
         ArgumentNullException.ThrowIfNull(carpetas);
         string carpeta = CarpetaInstalada(carpetas);
         string ocupa = EspacioInstalada is { AppBytes: > 0 } e ? $" ({Instalador.Peso(e.AppBytes)})" : "";
-        string descargas = ZipDescargado || DescargaParcialBytes > 0
-            ? $" También se borra lo descargado de la versión {VersionDisponible} que quedó en «{carpetas.Descargas}»."
+        string pesoDescargas = DescargasDeLaAppBytes > 0 ? $" ({Instalador.Peso(DescargasDeLaAppBytes)})" : "";
+        string descargas = DescargasDeLaAppBytes > 0 || ZipDescargado || DescargaParcialBytes > 0
+            ? $" También se borra lo descargado de {Nombre} que quedó en «{carpetas.Descargas}»{pesoDescargas}."
             : "";
         string compartido = EspacioInstalada is { CompartidoBytes: > 0 } c
             ? $" Los módulos y modelos compartidos ({Instalador.Peso(c.CompartidoBytes)}) se quedan en «{carpetas.Comun}» para las demás herramientas."
@@ -132,6 +135,9 @@ public sealed record TarjetaHerramienta(
 /// </summary>
 public sealed record CargaDeTarjetas(IReadOnlyList<TarjetaHerramienta> Tarjetas, bool SinConexion)
 {
+    /// <summary>Busca la tarjeta conservando su estado, también cuando procede solo del disco.</summary>
+    public TarjetaHerramienta? TarjetaParaRepintar(string id) => Tarjetas.FirstOrDefault(t => t.Id == id);
+
     public const string TituloSinConexion = "Sin conexión";
 
     public const string AvisoSinConexion = "No se pudo leer el catálogo de Dathinel. Las herramientas instaladas se pueden abrir y quitar; para instalar o buscar versiones nuevas, comprueba tu conexión a internet y pulsa «Buscar actualizaciones».";

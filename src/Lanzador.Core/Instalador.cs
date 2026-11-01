@@ -200,7 +200,8 @@ public sealed class Instalador : IDisposable
                 instalada is null ? null : BuscarEjecutable(app.Id),
                 pendiente ? DescargaParcial(app) : 0,
                 pendiente && ZipDescargado(app),
-                incompleta
+                incompleta,
+                DescargasDeLaAppBytes: DescargasDeLaApp(app.Id, indice).Sum(ruta => new FileInfo(ruta).Length)
             ));
         }
 
