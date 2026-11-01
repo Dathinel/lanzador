@@ -118,3 +118,8 @@ La lógica está en `ActualizacionesTests` y `ComprobadorLanzadorTests`; aquí l
 5. **Más tarde:** púlsalo: la franja desaparece y en `%LOCALAPPDATA%\Dathinel\Lanzador\ajustes.json` queda `versionDescartada: "9.9.9"`. Cierra y abre el Lanzador: no vuelve a salir. Con «Buscar actualizaciones» sí sale, porque se pidió a mano.
 6. **24 h:** con la franja ya vista, cierra y abre: no se consulta GitHub otra vez (la hora de `ultimaConsultaLanzador` en `ajustes.json` no cambia) hasta pasadas 24 h. Sin red, al abrir no debe salir nada ni tardar más: la consulta va fuera del hilo de la ventana y se rinde a los 5 s.
 7. **Acerca de:** el interruptor «Avisar cuando haya una versión nueva» viene activado; apágalo y en `ajustes.json` queda `avisarVersionNueva: false`; al abrir ya no se consulta. El enlace «Buscar actualizaciones» cierra el diálogo y busca al momento (también el catálogo): con todo al día sale el aviso «No hay nada nuevo: el Lanzador y las herramientas están al día.»; sin red, «Las herramientas están al día. No se pudo consultar si hay un Lanzador nuevo; inténtalo más tarde.»; con herramientas viejas, las nombra como antes.
+
+## Resultado del repaso del 1-nov (Claude con el ratón, `dist\Lanzador`)
+
+Pasaron: arranque, tres tarjetas con versión, descarga y «En disco: … (app, compartido)», «Abrir» lanza la copia instalada de Rastrear, pie con el espacio total.
+Fallo: **«Buscar actualizaciones» dice «No se pudo consultar si hay un Lanzador nuevo»** porque la única release de `Dathinel/lanzador` es prerelease y `releases/latest` devuelve 404 (comprobado con `gh api`). O se publica una release normal, o la consulta cae a `releases` (lista) cuando `latest` no existe; conviene lo segundo, porque Rodaje y las otras apps podrían tener la misma situación.
