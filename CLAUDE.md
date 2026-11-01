@@ -1,4 +1,4 @@
-# Lanzador
+﻿# Lanzador
 
 Herramienta de IA aparte de Rodaje, con interfaz propia. Repositorio público `Dathinel/lanzador`, GPL-3.0-only. El plan común de las tres herramientas está en `..\PLAN.md` (carpeta `Herramientas-IA`, que no se versiona).
 
@@ -11,7 +11,7 @@ Herramienta de IA aparte de Rodaje, con interfaz propia. Repositorio público `D
 - **Lecciones de las hermanas que aquí ya se cumplen:** sin selectores WinRT (salen colapsados), `DispatcherQueueSynchronizationContext` antes de crear `App`, y ningún `async void` con `await` fuera de `try/catch`.
 - **WinUI en AOT:** `AppWindow.Presenter is OverlappedPresenter` nunca acierta: `Presenter.Kind` + `As<OverlappedPresenter>()`. Los recursos `AccentButton*`/`HyperlinkButton*` no se pisan desde `App.Resources`: van en `Acento.xaml` mezclado donde se usan. Icono: `build\generar-iconos.ps1` regenera `assets\marca\lanzador.ico` desde los SVG.
 
-## Estado (24-oct)
+## Estado (31-oct)
 
 - Fase 0 cerrada: esqueleto, licencia y `src\Lanzador.slnx`.
 - Fase 1 cerrada: `Lanzador.Core` (`Instalador` sobre `Rodaje.Packages`: índice firmado, descarga reanudable, módulos y modelos compartidos en `Comun\`) y `Lanzador.Cli` AOT (6,2 MB) con `lista | instalar | actualizar | quitar`; 17 pruebas contra un servidor local. Verificada por un agente aparte; cifras y pendientes en `docs/informe-fase-1.md`.
@@ -21,5 +21,6 @@ Herramienta de IA aparte de Rodaje, con interfaz propia. Repositorio público `D
 - **Submódulo** en el commit de `main` de Rodaje con `IndexEntryKind.App` (#445).
 - **Cómo encuentran las apps `Comun\modulos`:** el Lanzador las abre con `SUBTITULAR_MODULOS` y `RASTREAR_MODULOS` apuntando ahí (lo que ya leen sus `Modules.Find`).
 - **1.0.0 prerelease** (24-oct): etiqueta `v1.0.0` y release con zip, instalador y `SHA256SUMS`; va como prerelease porque la ventana no se ha probado con ratón. `dist\catalogo-lanzador.json` lleva la URL y la huella del zip publicado.
-- **Rama `claude/arreglos-1-1` (31-oct):** CI de `main` arreglada (`catalogo-entrada.ps1` sin cmdlets de `Microsoft.PowerShell.Utility`, que powershell.exe 5.1 no carga cuando lo lanza pwsh 7) y calidad de vida 1.1: versiones instalada/disponible con «Actualizar» solo si difieren, aviso de actualizaciones al abrir, velocidad y tiempo restante medidos, reanudar descarga cortada, «Abrir» solo con exe, «Quitar» con confirmación que dice la carpeta, y panel en español cuando el catálogo no se verifica (`CatalogoNoVerificadoException`). 46 pruebas (`CalidadDeVidaTests`); lo que juzga Daniel en `docs/pruebas-a-mano.md` (bloque 9). El SDK y las pruebas de Core corren también en Linux (`dotnet test tests/Lanzador.Tests`); la App solo en Windows.
+- **Arreglos 1.1 unidos en `main` (#1, 31-oct):** CI de `main` arreglada (`catalogo-entrada.ps1` sin cmdlets de `Microsoft.PowerShell.Utility`, que powershell.exe 5.1 no carga cuando lo lanza pwsh 7) y calidad de vida 1.1: versiones instalada/disponible con «Actualizar» solo si difieren, aviso de actualizaciones al abrir, velocidad y tiempo restante medidos, reanudar descarga cortada, «Abrir» solo con exe, «Quitar» con confirmación que dice la carpeta, y panel en español cuando el catálogo no se verifica (`CatalogoNoVerificadoException`). 46 pruebas (`CalidadDeVidaTests`); lo que juzga Daniel en `docs/pruebas-a-mano.md` (bloque 9). El SDK y las pruebas de Core corren también en Linux (`dotnet test tests/Lanzador.Tests`); la App solo en Windows.
+- **Revisión de bloque (31-oct, rama `claude/arreglos-revision`):** velocidad sin pico falso al reanudar, «Completar instalación» cuando se cortó bajando módulos o modelos, «Instalar (ya descargado)» con el zip entero sin extraer, la ventana recarga la tarjeta tras cancelar, un solo sitio para el sufijo de velocidad (`ProgresoDetallado.TextoRitmo`). Preguntas abiertas para Daniel: catálogo sin red con instaladas, «Quitar» y descargas, `CatalogoNoVerificadoException` en `Rodaje.Packages`, mensaje largo en la CLI.
 - **Siguiente:** Daniel firma las entradas `app` (`catalogo-subtitular.json`, `catalogo-rastrear.json`, `catalogo-lanzador.json`) con `firmar-indice.ps1` de `Dathinel/rodaje-catalogo`; hasta entonces el Lanzador real no lista nada. Después, `docs/pruebas-a-mano.md` y quitar la marca de prerelease.
