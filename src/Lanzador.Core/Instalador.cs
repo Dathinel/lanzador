@@ -104,11 +104,26 @@ public sealed class Instalador : IDisposable
         return text.Length == 0 ? null : text;
     }
 
-    /// <exception cref="PackageDownloadException">No se pudo leer el índice o su firma no es válida.</exception>
+    /// <exception cref="CatalogoNoVerificadoException">La firma del índice no es válida (o es más viejo que uno ya visto).</exception>
+    /// <exception cref="PackageDownloadException">No se pudo leer el índice.</exception>
     public Task<SignedIndex> IndiceAsync(CancellationToken ct) => IndiceAsync(refresh: false, ct);
 
-    /// <exception cref="PackageDownloadException">No se pudo leer el índice o su firma no es válida.</exception>
+    /// <exception cref="CatalogoNoVerificadoException">La firma del índice no es válida (o es más viejo que uno ya visto).</exception>
+    /// <exception cref="PackageDownloadException">No se pudo leer el índice.</exception>
     public async Task<SignedIndex> IndiceAsync(bool refresh, CancellationToken ct = default)
+    {
+        try
+        {
+            return await LeerIndiceAsync(refresh, ct).ConfigureAwait(false);
+        }
+        catch (DownloadVerificationException ex)
+        {
+            // Rodaje habla de «índice de complementos»; aquí es «el catálogo», y la ventana tiene que decirlo claro.
+            throw CatalogoNoVerificadoException.Desde(ex);
+        }
+    }
+
+    private async Task<SignedIndex> LeerIndiceAsync(bool refresh, CancellationToken ct)
     {
         if (_indiceLocal is null)
         {
@@ -172,11 +187,41 @@ public sealed class Instalador : IDisposable
                 instalada,
                 app.Size,
                 espacio,
-                estado
+                estado,
+                instalada is null ? null : BuscarEjecutable(app.Id),
+                estado == EstadoTarjeta.Instalada ? 0 : DescargaParcial(app)
             ));
         }
 
         return tarjetas;
+    }
+
+    /// <summary>Bytes que ya hay en <c>Comun\descargas</c> del zip de esa entrada (el «.parcial» de una descarga cortada, o el zip entero sin extraer).</summary>
+    public long DescargaParcial(IndexEntry entrada)
+    {
+        ArgumentNullException.ThrowIfNull(entrada);
+        string zip = Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip");
+        try
+        {
+            if (File.Exists(zip))
+            {
+                return new FileInfo(zip).Length;
+            }
+
+            string parcial = zip + FileDownloader.PartialSuffix;
+            return File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>Carpeta que borra <see cref="Quitar"/>: <c>Herramientas\&lt;id&gt;</c>.</summary>
+    public string CarpetaInstalada(string id)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        return Path.Combine(_carpetas.Herramientas, id);
     }
 
     /// <summary>La versión instalada más nueva de <paramref name="id"/>, o <c>null</c>.</summary>
@@ -530,7 +575,10 @@ public sealed class Instalador : IDisposable
         {
             if (value.BytesTotales > 0)
             {
-                destino.Report($"{value.Archivo}: {(int)(value.ProgresoArchivo * 100)} % de {Peso(value.BytesTotales)}");
+                string ritmo = value.VelocidadBytesPorSegundo > 0
+                    ? value.TiempoRestante is { } restante ? $" · {value.FormatearVelocidad()}, quedan ~{Tiempos.Formatear(restante)}" : $" · {value.FormatearVelocidad()}"
+                    : "";
+                destino.Report($"{value.Archivo}: {(int)(value.ProgresoArchivo * 100)} % de {Peso(value.BytesTotales)}{ritmo}");
             }
             else if (!string.IsNullOrEmpty(value.Fase))
             {

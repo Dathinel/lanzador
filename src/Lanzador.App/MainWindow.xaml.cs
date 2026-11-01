@@ -186,11 +186,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>Lee el catálogo (al abrir y al pulsar «Buscar actualizaciones»), pinta las tarjetas y avisa discreto si hay versiones nuevas.</summary>
     private async Task CargarCatalogoAsync(bool refrescar)
     {
         BotonRefrescar.IsEnabled = false;
+        BotonReintentar.IsEnabled = false;
         AvisoIndice.IsOpen = false;
+        AvisoActualizaciones.IsOpen = false;
         EstadoVacio.Visibility = Visibility.Collapsed;
+        EstadoCatalogo.Visibility = Visibility.Collapsed;
         ListaTarjetas.Children.Clear();
         ActualizarEspacioTotal();
 
@@ -203,17 +207,24 @@ public sealed partial class MainWindow : Window
             }
 
             EstadoVacio.Visibility = tarjetas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (Actualizaciones.Aviso(tarjetas) is { } aviso)
+            {
+                AvisoActualizaciones.Message = aviso;
+                AvisoActualizaciones.IsOpen = true;
+            }
         }
         catch (Exception ex)
         {
-            string desc = MensajesError.Describir(ex);
-            AvisoIndice.Severity = InfoBarSeverity.Error;
-            AvisoIndice.Message = $"No se puede verificar el catálogo: {desc}. No se ofrecen aplicaciones para instalar.";
-            AvisoIndice.IsOpen = true;
+            // Con firma inválida (o sin red) la lista no se queda vacía en silencio: el panel dice por qué y qué hacer.
+            (string titulo, string detalle) = MensajesError.DescribirFalloDelCatalogo(ex);
+            TituloEstadoCatalogo.Text = titulo;
+            TextoEstadoCatalogo.Text = detalle;
+            EstadoCatalogo.Visibility = Visibility.Visible;
         }
         finally
         {
             BotonRefrescar.IsEnabled = true;
+            BotonReintentar.IsEnabled = true;
         }
     }
 
@@ -293,9 +304,10 @@ public sealed partial class MainWindow : Window
         // Fila 5: botones de acción
         var filaBotones = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         Style acento = (Style)Application.Current.Resources["AccentButtonStyle"];
-        var btnInstalar = new Button { Content = "Instalar", Style = acento, Visibility = tarjeta.PuedeInstalar ? Visibility.Visible : Visibility.Collapsed };
+        // «Instalar» pasa a «Reanudar descarga» si quedó un .parcial de la versión disponible; «Actualizar» solo cuando la instalada es más vieja.
+        var btnInstalar = new Button { Content = tarjeta.TextoInstalar, Style = acento, Visibility = tarjeta.PuedeInstalar ? Visibility.Visible : Visibility.Collapsed };
         var btnAbrir = new Button { Content = "Abrir", Style = acento, Visibility = tarjeta.PuedeAbrir ? Visibility.Visible : Visibility.Collapsed };
-        var btnActualizar = new Button { Content = "Actualizar", Visibility = tarjeta.PuedeActualizar ? Visibility.Visible : Visibility.Collapsed };
+        var btnActualizar = new Button { Content = tarjeta.TextoActualizar, Visibility = tarjeta.PuedeActualizar ? Visibility.Visible : Visibility.Collapsed };
         var btnQuitar = new Button { Content = "Quitar", Visibility = tarjeta.PuedeQuitar ? Visibility.Visible : Visibility.Collapsed };
         var btnCancelar = new Button { Content = "Cancelar", Visibility = Visibility.Collapsed };
         filaBotones.Children.Add(btnInstalar);
@@ -308,9 +320,11 @@ public sealed partial class MainWindow : Window
         CancellationTokenSource? ctsOperacion = null;
         var reloj = new Stopwatch();
         double fraccion = 0;
+        TimeSpan? restanteMedido = null;
         var temporizador = DispatcherQueue.CreateTimer();
         temporizador.Interval = TimeSpan.FromSeconds(1);
-        temporizador.Tick += (_, _) => textoTiempos.Text = Tiempos.Resumen(reloj.Elapsed, fraccion);
+        // Lo que queda sale de la velocidad real de la descarga; mientras no la haya, de la regla de tres sobre la fracción.
+        temporizador.Tick += (_, _) => textoTiempos.Text = Tiempos.Resumen(reloj.Elapsed, fraccion, restanteMedido);
 
         void EstablecerOcupado(bool ocupado)
         {
@@ -331,6 +345,7 @@ public sealed partial class MainWindow : Window
                 temporizador.Stop();
                 reloj.Reset();
                 fraccion = 0;
+                restanteMedido = null;
                 relleno.Scale = new Vector3(0, 1, 1);
                 textoTiempos.Text = "0:00";
             }
@@ -347,6 +362,7 @@ public sealed partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                avisoTarjeta.Severity = InfoBarSeverity.Error;
                 avisoTarjeta.Message = MensajesError.Describir(ex);
                 avisoTarjeta.IsOpen = true;
             }
@@ -362,6 +378,7 @@ public sealed partial class MainWindow : Window
             var progreso = new Progress<ProgresoDetallado>(p =>
             {
                 fraccion = p.ProgresoAgregado;
+                restanteMedido = p.TiempoRestante;
                 textoFase.Text = p.Fase;
                 textoBytes.Text = p.BytesTotales > 0 ? p.TextoProgreso() : "";
                 relleno.Scale = new Vector3((float)Math.Max(0.02, p.ProgresoAgregado), 1, 1);
@@ -381,9 +398,21 @@ public sealed partial class MainWindow : Window
                 await Task.Delay(900);
                 await CargarCatalogoAsync(refrescar: false);
             }
+            catch (OperationCanceledException)
+            {
+                // Lo bajado queda en Comun\descargas\<huella>.zip.parcial; el Instalador lo reanuda con Range la próxima vez.
+                EstablecerOcupado(false);
+                btnInstalar.Content = "Reanudar descarga";
+                btnActualizar.Content = "Reanudar actualización";
+                avisoTarjeta.Severity = InfoBarSeverity.Informational;
+                avisoTarjeta.Message = "Descarga cancelada. Lo ya bajado se guarda: pulsa «Reanudar» para seguir donde quedó.";
+                avisoTarjeta.IsOpen = true;
+                ActualizarEspacioTotal();
+            }
             catch (Exception ex)
             {
                 EstablecerOcupado(false);
+                avisoTarjeta.Severity = InfoBarSeverity.Error;
                 avisoTarjeta.Message = MensajesError.Describir(ex);
                 avisoTarjeta.IsOpen = true;
                 ActualizarEspacioTotal();
@@ -398,16 +427,32 @@ public sealed partial class MainWindow : Window
         btnInstalar.Click += (_, _) => Ejecutar();
         btnActualizar.Click += (_, _) => Ejecutar();
 
+        // Quitar pide confirmación diciendo qué carpeta se borra y qué se queda; «Cancelar» es el botón por defecto.
         btnQuitar.Click += async (_, _) =>
         {
             avisoTarjeta.IsOpen = false;
             try
             {
+                var confirmacion = new ContentDialog
+                {
+                    Title = $"¿Quitar {tarjeta.Nombre}?",
+                    Content = new TextBlock { Text = tarjeta.TextoConfirmarQuitar(_instalador.Carpetas), TextWrapping = TextWrapping.Wrap },
+                    PrimaryButtonText = "Quitar",
+                    CloseButtonText = "Cancelar",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = Content.XamlRoot,
+                };
+                if (await confirmacion.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+
                 _instalador.Quitar(tarjeta.Id);
                 await CargarCatalogoAsync(refrescar: false);
             }
             catch (Exception ex)
             {
+                avisoTarjeta.Severity = InfoBarSeverity.Error;
                 avisoTarjeta.Message = MensajesError.Describir(ex);
                 avisoTarjeta.IsOpen = true;
             }

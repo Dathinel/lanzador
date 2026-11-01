@@ -35,11 +35,14 @@
                 <TextBlock Text="Lanzador" FontFamily="{StaticResource FuenteTitulo}" FontSize="32" FontWeight="SemiBold" LineHeight="36" />
                 <TextBlock Text="Las herramientas, listas" FontFamily="{StaticResource FuenteTitulo}" FontSize="16" Style="{StaticResource TextoAcento}" />
             </StackPanel>
-            <Button Grid.Column="2" x:Name="BotonRefrescar" Content="Actualizar catálogo" Click="OnRefrescarClick" VerticalAlignment="Center" />
+            <Button Grid.Column="2" x:Name="BotonRefrescar" Content="Buscar actualizaciones" Click="OnRefrescarClick" VerticalAlignment="Center" />
         </Grid>
 
-        <!-- Aviso si no se puede verificar el índice -->
-        <InfoBar Grid.Row="1" x:Name="AvisoIndice" IsOpen="False" IsClosable="True" Severity="Error" Margin="32,0,32,8" />
+        <!-- Avisos: errores de la ventana y, discreto, «hay actualizaciones» al abrir o al buscar -->
+        <StackPanel Grid.Row="1" Spacing="8" Margin="32,0,32,8">
+            <InfoBar x:Name="AvisoIndice" IsOpen="False" IsClosable="True" Severity="Error" />
+            <InfoBar x:Name="AvisoActualizaciones" IsOpen="False" IsClosable="True" Severity="Informational" Title="Actualizaciones" />
+        </StackPanel>
 
         <!-- Lista de tarjetas con desplazamiento -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="32,8,32,8">
@@ -54,7 +57,18 @@
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
             </Grid>
             <TextBlock Text="Todavía no hay herramientas en el catálogo" FontFamily="{StaticResource FuenteTitulo}" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
-            <TextBlock Text="Cuando se publiquen, aparecerán aquí listas para instalar. Pulsa «Actualizar catálogo» para volver a mirar." Style="{StaticResource TextoSecundario}" TextAlignment="Center" />
+            <TextBlock Text="Cuando se publiquen, aparecerán aquí listas para instalar. Pulsa «Buscar actualizaciones» para volver a mirar." Style="{StaticResource TextoSecundario}" TextAlignment="Center" />
+        </StackPanel>
+
+        <!-- Estado de fallo: el catálogo no se pudo leer o su firma no es válida; dice por qué y qué hacer, nunca una lista vacía en silencio -->
+        <StackPanel Grid.Row="2" x:Name="EstadoCatalogo" Visibility="Collapsed" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="460">
+            <Grid Width="96" Height="96" Margin="0,0,0,8">
+                <Ellipse Stroke="{ThemeResource AcentoBrush}" StrokeThickness="4" Opacity="0.45" Margin="2" />
+                <FontIcon Glyph="&#xE7BA;" FontSize="40" Foreground="{ThemeResource AcentoBrush}" />
+            </Grid>
+            <TextBlock x:Name="TituloEstadoCatalogo" Text="No se pudo leer el catálogo" FontFamily="{StaticResource FuenteTitulo}" FontSize="20" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Name="TextoEstadoCatalogo" Style="{StaticResource TextoSecundario}" TextAlignment="Center" />
+            <Button x:Name="BotonReintentar" Content="Volver a intentar" Click="OnRefrescarClick" HorizontalAlignment="Center" Margin="0,8,0,0" />
         </StackPanel>
 
         <!-- Pie: espacio total y Abrir carpeta -->

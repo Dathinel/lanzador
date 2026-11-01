@@ -34,7 +34,7 @@ El ejecutable listo para usar se encuentra en:
 ## 3. Comportamiento sin conexión o firma no válida
 
 1. Inicia el Lanzador sin conexión a internet (o con un índice de prueba sin firmar):
-   - **Qué juzgar:** Aparece la barra superior roja en español: «No se puede verificar el catálogo: Sin conexión con el catálogo… No se ofrecen aplicaciones para instalar.»
+   - **Qué juzgar:** En el sitio de la lista aparece el panel en español («Sin conexión con el catálogo» o «El catálogo no se puede verificar») con el motivo, qué hacer y «Volver a intentar» (ver bloque 9.7).
    - Nunca debe aparecer una traza de error en inglés ni un diálogo modal de bloqueo.
    - Las tarjetas no ofrecen botones de instalación para evitar estados corruptos.
 
@@ -90,3 +90,17 @@ Capturas de referencia en `docs/capturas/` (tema oscuro). Lo que solo tú puedes
 5. **Ventana:** mueve y redimensiona, cierra y vuelve a abrir: debe aparecer donde la dejaste (también maximizada). Intenta hacerla más pequeña de 640x480: no debe dejar.
 6. **Teclado:** con Tab el foco debe verse en los botones y en «Acerca de» (recuadro de foco de WinUI).
 7. **Acerca de:** abre el diálogo del pie y pulsa el enlace de Rodaje: debe abrir `github.com/Dathinel/rodaje` en el navegador.
+
+---
+
+## 9. Calidad de vida (1.1, sin publicar)
+
+La lógica de todo esto está probada en `CalidadDeVidaTests`; aquí va lo que solo se ve con la ventana.
+
+1. **Versiones y «Actualizar»:** con una herramienta instalada y una versión más nueva en el catálogo, la tarjeta dice «Instalada X · Disponible Y» y aparece «Actualizar»; al día dice «Versión X (al día)» y no hay botón.
+2. **Buscar actualizaciones al abrir:** si hay versiones nuevas, bajo la cabecera sale una barra azul discreta «Actualizaciones: Hay una actualización: Subtitular 1.0.0 → 1.1.0.» que se puede cerrar. El botón de la cabecera ahora se llama «Buscar actualizaciones» y hace lo mismo.
+3. **Velocidad y tiempo restante:** al instalar, la línea de bytes dice «subtitular: 12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)» y la derecha «0:42 · quedan ~0:07» con el mismo número (sale de la velocidad real, no de la fracción).
+4. **Reanudar:** pulsa «Cancelar» a mitad de descarga. Debe salir un aviso azul «Descarga cancelada. Lo ya bajado se guarda…», el botón pasa a «Reanudar descarga» y en `Comun\descargas` queda un `.zip.parcial`. Al reanudar, la barra arranca donde quedó y termina; el `.parcial` desaparece. Cierra y vuelve a abrir el Lanzador antes de reanudar: la tarjeta debe decir «X MB ya bajados, se reanudará».
+5. **Abrir:** solo aparece si la app trae un exe; púlsalo y la app debe abrirse.
+6. **Quitar con confirmación:** pulsa «Quitar»: diálogo «¿Quitar Subtitular?» con la carpeta exacta que se borra, lo que ocupa y que lo compartido se queda. Intro o Esc cancelan (el botón por defecto es «Cancelar»); solo «Quitar» borra.
+7. **Firma inválida:** arranca con `--indice` apuntando a un índice con `.sig` de otra clave (o sin red). En el sitio de la lista debe salir el panel con el icono, «El catálogo no se puede verificar» (o «Sin conexión con el catálogo») y el texto en español con qué hacer, más «Volver a intentar». Nunca una lista vacía sin explicación ni texto en inglés.
