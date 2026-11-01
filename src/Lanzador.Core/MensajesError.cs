@@ -11,6 +11,9 @@ public sealed class CatalogoNoVerificadoException : PackageDownloadException
 {
     public const string Mensaje = "La firma del catálogo no es válida: el catálogo no es el que publicó Dathinel o llegó dañado. Por seguridad no se ofrece nada para instalar.";
 
+    /// <summary>Para la línea de órdenes, que no tiene sitio para el párrafo de la ventana: una línea corta.</summary>
+    public const string MensajeCorto = "La firma del catálogo no es válida; no se instala nada.";
+
     public CatalogoNoVerificadoException()
         : base(Mensaje)
     {
@@ -116,8 +119,14 @@ public static class MensajesError
         return ("No se pudo leer el catálogo", $"{Describir(ex)} No se ofrecen aplicaciones para instalar hasta que se pueda leer.");
     }
 
-    /// <summary>Una excepción de red, también cuando Rodaje la envolvió en <see cref="PackageDownloadException"/> («No hay conexión con GitHub»).</summary>
-    private static bool EsFalloDeRed(Exception ex) =>
-        ex is HttpRequestException or SocketException
-        || (ex is PackageDownloadException and not DownloadVerificationException && ex.InnerException is (HttpRequestException or SocketException));
+    /// <summary>
+    /// Una excepción de red, también cuando Rodaje la envolvió en <see cref="PackageDownloadException"/> («No hay conexión con GitHub»,
+    /// «GitHub no respondió a tiempo»). Nunca un rechazo de firma: ese no se disimula con lo instalado.
+    /// </summary>
+    public static bool EsFalloDeRed(Exception ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ex is HttpRequestException or SocketException
+            || (ex is PackageDownloadException and not DownloadVerificationException && ex.InnerException is (HttpRequestException or SocketException or TaskCanceledException));
+    }
 }

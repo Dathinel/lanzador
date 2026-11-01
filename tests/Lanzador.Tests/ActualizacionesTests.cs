@@ -52,7 +52,7 @@ public sealed class ActualizacionesTests : IAsyncLifetime, IDisposable
     [Theory]
     [InlineData("1.1.0", "1.0.0", EstadoTarjeta.Actualizable)]
     [InlineData("1.0.0", "1.0.0", EstadoTarjeta.Instalada)]
-    [InlineData("0.9.0", "1.0.0", EstadoTarjeta.Instalada)]
+    [InlineData("0.9.0", "1.0.0", EstadoTarjeta.InstaladaMasNueva)]
     [InlineData("1.1.0", null, EstadoTarjeta.NoInstalada)]
     public async Task La_tarjeta_compara_la_version_del_catalogo_con_la_instalada(string catalogo, string? instalada, EstadoTarjeta esperado)
     {

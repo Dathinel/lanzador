@@ -176,6 +176,7 @@ public sealed class Instalador : IDisposable
             {
                 null => EstadoTarjeta.NoInstalada,
                 var v when v.CompareTo(app.Version) < 0 => EstadoTarjeta.Actualizable,
+                var v when v.CompareTo(app.Version) > 0 => EstadoTarjeta.InstaladaMasNueva,
                 _ => EstadoTarjeta.Instalada,
             };
             // Cortada tras extraer la app (bajando un módulo o modelo): Actualizable para que «Completar instalación» vuelva a InstalarAsync.
@@ -185,6 +186,8 @@ public sealed class Instalador : IDisposable
                 estado = EstadoTarjeta.Actualizable;
             }
 
+            // Al día o más nueva que el catálogo no hay nada que bajar: lo que quede en descargas no cuenta como «reanudar».
+            bool pendiente = estado is EstadoTarjeta.NoInstalada or EstadoTarjeta.Actualizable;
             tarjetas.Add(new TarjetaHerramienta(
                 app.Id,
                 nombre,
@@ -195,9 +198,60 @@ public sealed class Instalador : IDisposable
                 espacio,
                 estado,
                 instalada is null ? null : BuscarEjecutable(app.Id),
-                estado == EstadoTarjeta.Instalada ? 0 : DescargaParcial(app),
-                estado != EstadoTarjeta.Instalada && ZipDescargado(app),
+                pendiente ? DescargaParcial(app) : 0,
+                pendiente && ZipDescargado(app),
                 incompleta
+            ));
+        }
+
+        return tarjetas;
+    }
+
+    /// <summary>
+    /// Las tarjetas para la ventana: las del catálogo o, si no hay red pero sí herramientas instaladas, las que salen de lo
+    /// que hay en disco (<see cref="TarjetasInstaladas"/>) con <see cref="CargaDeTarjetas.SinConexion"/>. Sin red y sin nada
+    /// instalado, o con cualquier otro fallo (firma inválida, índice roto), lanza como <see cref="ObtenerTarjetasAsync"/>.
+    /// </summary>
+    public async Task<CargaDeTarjetas> CargarTarjetasAsync(bool refrescar = false, CancellationToken ct = default)
+    {
+        try
+        {
+            return new CargaDeTarjetas(await ObtenerTarjetasAsync(refrescar, ct).ConfigureAwait(false), SinConexion: false);
+        }
+        catch (PackageDownloadException ex) when (MensajesError.EsFalloDeRed(ex))
+        {
+            IReadOnlyList<TarjetaHerramienta> instaladas = TarjetasInstaladas();
+            if (instaladas.Count == 0)
+            {
+                throw;
+            }
+
+            return new CargaDeTarjetas(instaladas, SinConexion: true);
+        }
+    }
+
+    /// <summary>
+    /// Una tarjeta por herramienta instalada, sin mirar el catálogo: versión y ejecutable de la carpeta, espacio medido, y como
+    /// «disponible» la misma instalada (no se sabe si hay otra). Solo «Abrir» y «Quitar».
+    /// </summary>
+    public IReadOnlyList<TarjetaHerramienta> TarjetasInstaladas()
+    {
+        var tarjetas = new List<TarjetaHerramienta>();
+        foreach (string id in Instaladas())
+        {
+            PackageVersion instalada = Instalada(id)!;
+            var (nombre, descripcion) = CatalogoMetadatos.Obtener(id);
+            tarjetas.Add(new TarjetaHerramienta(
+                id,
+                nombre,
+                descripcion,
+                instalada,
+                instalada,
+                0,
+                CalculadorEspacio.CalcularEspacioInstalada(id, _carpetas),
+                EstadoTarjeta.Instalada,
+                BuscarEjecutable(id),
+                SinCatalogo: true
             ));
         }
 
@@ -345,9 +399,31 @@ public sealed class Instalador : IDisposable
         return cambios;
     }
 
-    /// <summary>Borra solo la carpeta de esa app; los módulos y modelos comunes se quedan.</summary>
+    /// <summary>
+    /// Borra la carpeta de esa app y, con el catálogo a mano, lo que quedó en <c>Comun\descargas</c> de sus zips (enteros o
+    /// <c>.parcial</c>, de cualquier versión publicada); los módulos y modelos comunes se quedan. Sin red se borra solo la
+    /// carpeta: las descargas de la app se van la próxima vez que se quite con catálogo.
+    /// </summary>
     /// <exception cref="ErrorDeUso">No está instalada.</exception>
-    public void Quitar(string id)
+    public async Task QuitarAsync(string id, CancellationToken ct = default)
+    {
+        SignedIndex? indice;
+        try
+        {
+            indice = await IndiceAsync(ct).ConfigureAwait(false);
+        }
+        catch (PackageDownloadException)
+        {
+            // Sin red, o con un catálogo que no se verifica: quitar lo instalado no depende de él.
+            indice = null;
+        }
+
+        Quitar(id, indice);
+    }
+
+    /// <summary>Borra la carpeta de esa app y, si se le da el catálogo, los zips y <c>.parcial</c> de sus entradas en <c>Comun\descargas</c>.</summary>
+    /// <exception cref="ErrorDeUso">No está instalada.</exception>
+    public void Quitar(string id, SignedIndex? indice = null)
     {
         string carpeta = Path.Combine(_carpetas.Herramientas, id);
         if (!Identifiers.IsValid(id) || !Directory.Exists(carpeta))
@@ -356,6 +432,26 @@ public sealed class Instalador : IDisposable
         }
 
         Directory.Delete(carpeta, recursive: true);
+        foreach (string descarga in DescargasDeLaApp(id, indice))
+        {
+            File.Delete(descarga);
+        }
+    }
+
+    /// <summary>Los archivos que hay en <c>Comun\descargas</c> de las entradas <c>app</c> de <paramref name="id"/>: <c>&lt;huella&gt;.zip</c> y su <c>.parcial</c>.</summary>
+    public IReadOnlyList<string> DescargasDeLaApp(string id, SignedIndex? indice)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (indice is null || !Directory.Exists(_carpetas.Descargas))
+        {
+            return [];
+        }
+
+        return [.. indice.Entries.Where(e => e.Kind == IndexEntryKind.App && e.Id == id)
+            .Select(e => Path.Combine(_carpetas.Descargas, e.Sha256 + ".zip"))
+            .SelectMany(zip => new[] { zip, zip + FileDownloader.PartialSuffix })
+            .Distinct(StringComparer.Ordinal)
+            .Where(File.Exists)];
     }
 
     /// <summary>Busca el ejecutable principal para abrir la herramienta instalada.</summary>

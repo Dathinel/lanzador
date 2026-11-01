@@ -263,13 +263,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    /// <summary>Lee el catálogo (al abrir y al pulsar «Buscar actualizaciones»), pinta las tarjetas y avisa discreto si hay versiones nuevas.</summary>
-    /// <returns>Las tarjetas, o <c>null</c> si el catálogo no se pudo leer (el panel ya lo dice).</returns>
+    /// <summary>
+    /// Lee el catálogo (al abrir y al pulsar «Buscar actualizaciones»), pinta las tarjetas y avisa discreto si hay versiones nuevas.
+    /// Sin red pero con herramientas instaladas, las pinta desde el disco (solo «Abrir» y «Quitar») bajo la franja «Sin conexión».
+    /// </summary>
+    /// <returns>Las tarjetas del catálogo, o <c>null</c> si no se pudo leer (el panel o la franja «Sin conexión» ya lo dicen).</returns>
     private async Task<IReadOnlyList<TarjetaHerramienta>?> CargarCatalogoAsync(bool refrescar)
     {
         BotonRefrescar.IsEnabled = false;
         BotonReintentar.IsEnabled = false;
         AvisoIndice.IsOpen = false;
+        AvisoSinConexion.IsOpen = false;
         AvisoActualizaciones.IsOpen = false;
         TextoRecuento.Visibility = Visibility.Collapsed;
         EstadoVacio.Visibility = Visibility.Collapsed;
@@ -279,10 +283,19 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            IReadOnlyList<TarjetaHerramienta> tarjetas = await _instalador.ObtenerTarjetasAsync(refrescar);
+            CargaDeTarjetas carga = await _instalador.CargarTarjetasAsync(refrescar);
+            IReadOnlyList<TarjetaHerramienta> tarjetas = carga.Tarjetas;
             foreach (TarjetaHerramienta t in tarjetas)
             {
                 ListaTarjetas.Children.Add(CrearTarjetaUI(t));
+            }
+
+            if (carga.Aviso is { } sinConexion)
+            {
+                // Sin catálogo no se sabe si están al día: ni recuento, ni aviso, ni el resumen de «Buscar actualizaciones».
+                AvisoSinConexion.Message = sinConexion;
+                AvisoSinConexion.IsOpen = true;
+                return null;
             }
 
             EstadoVacio.Visibility = tarjetas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -534,7 +547,7 @@ public sealed partial class MainWindow : Window
         btnInstalar.Click += (_, _) => Ejecutar();
         btnActualizar.Click += (_, _) => Ejecutar();
 
-        // Quitar pide confirmación diciendo qué carpeta se borra y qué se queda; «Cancelar» es el botón por defecto.
+        // Quitar pide confirmación diciendo qué carpeta se borra, qué descargas de la app se van y qué se queda; «Cancelar» es el botón por defecto.
         btnQuitar.Click += async (_, _) =>
         {
             avisoTarjeta.IsOpen = false;
@@ -554,7 +567,8 @@ public sealed partial class MainWindow : Window
                     return;
                 }
 
-                _instalador.Quitar(tarjeta.Id);
+                // Con catálogo borra también los zips y «.parcial» de la app en Comun\descargas; sin red, solo la carpeta.
+                await _instalador.QuitarAsync(tarjeta.Id);
                 await CargarCatalogoAsync(refrescar: false);
             }
             catch (Exception ex)

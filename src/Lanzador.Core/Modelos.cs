@@ -24,6 +24,8 @@ public enum EstadoTarjeta
     NoInstalada,
     Instalada,
     Actualizable,
+    /// <summary>La versión instalada supera la del catálogo (una compilación propia o un catálogo atrasado): no se ofrece nada.</summary>
+    InstaladaMasNueva,
 }
 
 /// <summary>Información completa para pintar una tarjeta de herramienta en la interfaz.</summary>
@@ -31,6 +33,7 @@ public enum EstadoTarjeta
 /// <param name="DescargaParcialBytes">Lo que quedó en <c>Comun\descargas</c> de una descarga cortada de la versión disponible; se reanuda desde ahí.</param>
 /// <param name="ZipDescargado">El zip de la versión disponible ya está entero en <c>Comun\descargas</c> (falló la extracción): no hay nada que bajar.</param>
 /// <param name="InstalacionIncompleta">La app está extraída pero faltan módulos o modelos del manifiesto (se cortó después del zip): «Completar instalación».</param>
+/// <param name="SinCatalogo">La tarjeta sale solo de lo que hay en disco (sin red): <paramref name="VersionDisponible"/> es la instalada y no se sabe si hay versión nueva.</param>
 public sealed record TarjetaHerramienta(
     string Id,
     string Nombre,
@@ -43,26 +46,34 @@ public sealed record TarjetaHerramienta(
     string? Ejecutable = null,
     long DescargaParcialBytes = 0,
     bool ZipDescargado = false,
-    bool InstalacionIncompleta = false)
+    bool InstalacionIncompleta = false,
+    bool SinCatalogo = false)
 {
     public bool PuedeInstalar => Estado == EstadoTarjeta.NoInstalada;
     public bool PuedeAbrir => Estado != EstadoTarjeta.NoInstalada && Ejecutable is not null;
     public bool PuedeActualizar => Estado == EstadoTarjeta.Actualizable;
     public bool PuedeQuitar => Estado != EstadoTarjeta.NoInstalada;
 
+    /// <summary>No hay nada que bajar: instalada al día o más nueva que el catálogo.</summary>
+    public bool AlDia => Estado is EstadoTarjeta.Instalada or EstadoTarjeta.InstaladaMasNueva;
+
     /// <summary>Hay una descarga a medias de la versión disponible: el botón dirá «Reanudar».</summary>
-    public bool PuedeReanudar => Estado != EstadoTarjeta.Instalada && DescargaParcialBytes > 0;
+    public bool PuedeReanudar => !AlDia && DescargaParcialBytes > 0;
 
     public string TextoVersion => Estado switch
     {
         EstadoTarjeta.NoInstalada => $"Versión {VersionDisponible}",
+        EstadoTarjeta.Instalada when SinCatalogo => $"Versión {VersionInstalada} (instalada)",
         EstadoTarjeta.Instalada => $"Versión {VersionInstalada} (al día)",
+        EstadoTarjeta.InstaladaMasNueva => $"Instalada {VersionInstalada}, más nueva que el catálogo ({VersionDisponible})",
         EstadoTarjeta.Actualizable when InstalacionIncompleta => $"Versión {VersionInstalada} (faltan módulos o modelos)",
         EstadoTarjeta.Actualizable => $"Instalada {VersionInstalada} · Disponible {VersionDisponible}",
         _ => VersionDisponible.ToString()
     };
 
-    public string TextoDescarga => ZipDescargado
+    public string TextoDescarga => SinCatalogo
+        ? "Sin conexión: no se sabe si hay una versión nueva"
+        : ZipDescargado
         ? $"Descarga: {Instalador.Peso(TamanoDescarga)} · ya descargado"
         : PuedeReanudar
             ? $"Descarga: {Instalador.Peso(TamanoDescarga)} · {Instalador.Peso(Math.Min(DescargaParcialBytes, TamanoDescarga))} ya bajados, se reanudará"
@@ -99,17 +110,34 @@ public sealed record TarjetaHerramienta(
         return Path.Combine(carpetas.Herramientas, Id);
     }
 
-    /// <summary>Lo que se le pregunta antes de quitar: qué carpeta se borra, cuánto ocupa y qué se queda.</summary>
+    /// <summary>Lo que se le pregunta antes de quitar: qué carpeta se borra, cuánto ocupa, qué descargas de la app se van y qué se queda.</summary>
     public string TextoConfirmarQuitar(Carpetas carpetas)
     {
         ArgumentNullException.ThrowIfNull(carpetas);
         string carpeta = CarpetaInstalada(carpetas);
         string ocupa = EspacioInstalada is { AppBytes: > 0 } e ? $" ({Instalador.Peso(e.AppBytes)})" : "";
+        string descargas = ZipDescargado || DescargaParcialBytes > 0
+            ? $" También se borra lo descargado de la versión {VersionDisponible} que quedó en «{carpetas.Descargas}»."
+            : "";
         string compartido = EspacioInstalada is { CompartidoBytes: > 0 } c
             ? $" Los módulos y modelos compartidos ({Instalador.Peso(c.CompartidoBytes)}) se quedan en «{carpetas.Comun}» para las demás herramientas."
             : $" Lo compartido en «{carpetas.Comun}» se queda para las demás herramientas.";
-        return $"Se borrará la carpeta «{carpeta}»{ocupa} con {Nombre} {VersionInstalada}.{compartido}";
+        return $"Se borrará la carpeta «{carpeta}»{ocupa} con {Nombre} {VersionInstalada}.{descargas}{compartido}";
     }
+}
+
+/// <summary>
+/// Lo que la ventana pinta tras pedir el catálogo: las tarjetas y, si no hubo red pero sí herramientas instaladas, el aviso de
+/// que salen solo de lo que hay en disco (con «Abrir» y «Quitar», sin instalar ni actualizar).
+/// </summary>
+public sealed record CargaDeTarjetas(IReadOnlyList<TarjetaHerramienta> Tarjetas, bool SinConexion)
+{
+    public const string TituloSinConexion = "Sin conexión";
+
+    public const string AvisoSinConexion = "No se pudo leer el catálogo de Dathinel. Las herramientas instaladas se pueden abrir y quitar; para instalar o buscar versiones nuevas, comprueba tu conexión a internet y pulsa «Buscar actualizaciones».";
+
+    /// <summary>El texto de la franja «Sin conexión», o <c>null</c> cuando el catálogo se leyó.</summary>
+    public string? Aviso => SinConexion ? AvisoSinConexion : null;
 }
 
 /// <summary>Aviso discreto de «hay actualizaciones» al abrir o al buscar.</summary>

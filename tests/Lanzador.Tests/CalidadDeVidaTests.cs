@@ -135,9 +135,10 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
 
         TarjetaHerramienta t = Assert.Single(await instalador.ObtenerTarjetasAsync());
 
-        Assert.Equal(EstadoTarjeta.Instalada, t.Estado);
+        Assert.Equal(EstadoTarjeta.InstaladaMasNueva, t.Estado);
         Assert.Equal(PackageVersion.Parse("9.0.0"), t.VersionInstalada);
         Assert.False(t.PuedeActualizar);
+        Assert.True(t.AlDia);
     }
 
     // 2. Buscar actualizaciones: aviso discreto solo si hay.
@@ -361,7 +362,7 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
         int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", _servidor.UrlFor("indice.json").AbsoluteUri, "--clave", _firmante.PublicKeyBase64, "--destino", CarpetasPrueba.Herramientas, "--comun", CarpetasPrueba.Comun], new StringWriter(), error);
 
         Assert.Equal(2, codigo);
-        Assert.Equal("Error: " + CatalogoNoVerificadoException.Mensaje, error.ToString().Trim());
+        Assert.Equal("Error: " + CatalogoNoVerificadoException.MensajeCorto, error.ToString().Trim());
     }
 
     // 7. Revisión de bloque: velocidad al reanudar, zip entero sin extraer, instalación cortada tras la app, textos tras cancelar.
