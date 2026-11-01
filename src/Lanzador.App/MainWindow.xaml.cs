@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -323,7 +323,28 @@ public sealed partial class MainWindow : Window
         return elemento;
     }
 
-    private UIElement CrearTarjetaUI(TarjetaHerramienta tarjeta)
+    /// <summary>Vuelve a pintar una tarjeta con lo que hay en disco ahora (tras cancelar), con un aviso informativo encima.</summary>
+    private async Task RecargarTarjetaAsync(string id, UIElement vieja)
+    {
+        try
+        {
+            TarjetaHerramienta? nueva = (await _instalador.ObtenerTarjetasAsync(refrescar: false)).FirstOrDefault(t => t.Id == id);
+            int indice = ListaTarjetas.Children.IndexOf(vieja);
+            if (nueva is null || indice < 0)
+            {
+                await CargarCatalogoAsync(refrescar: false);
+                return;
+            }
+
+            ListaTarjetas.Children[indice] = CrearTarjetaUI(nueva, nueva.TextoCancelada);
+        }
+        catch (Exception ex)
+        {
+            MostrarErrorInesperado(MensajesError.Describir(ex));
+        }
+    }
+
+    private UIElement CrearTarjetaUI(TarjetaHerramienta tarjeta, string? avisoInicial = null)
     {
         var contenedor = Estilo(new Border { Shadow = new ThemeShadow(), Translation = new Vector3(0, 0, 12) }, "Tarjeta");
         var panel = new StackPanel { Spacing = 16 };
@@ -387,14 +408,14 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(panelProgreso);
 
         // Fila 4: mensaje de error de la tarjeta (inicialmente cerrado)
-        var avisoTarjeta = new InfoBar { IsOpen = false, IsClosable = true, Severity = InfoBarSeverity.Error };
+        var avisoTarjeta = new InfoBar { IsOpen = avisoInicial is not null, IsClosable = true, Severity = avisoInicial is null ? InfoBarSeverity.Error : InfoBarSeverity.Informational, Message = avisoInicial ?? "" };
         panel.Children.Add(avisoTarjeta);
 
         // Fila 5: botones de acción
         var filaBotones = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         Style acento = (Style)Application.Current.Resources["AccentButtonStyle"];
-        // «Instalar» pasa a «Reanudar descarga» si quedó un .parcial de la versión disponible; «Actualizar a X» ocupa su sitio (mismo
-        // estilo de acento) solo cuando la instalada es más vieja que la del catálogo.
+        // Los textos («Reanudar descarga», «Instalar (ya descargado)», «Completar instalación») los decide la tarjeta; «Actualizar a X»
+        // ocupa el sitio de «Instalar» (mismo estilo de acento) solo cuando la instalada es más vieja que la del catálogo.
         var btnInstalar = new Button { Content = tarjeta.TextoInstalar, Style = acento, Visibility = tarjeta.PuedeInstalar ? Visibility.Visible : Visibility.Collapsed };
         var btnActualizar = new Button { Content = tarjeta.TextoActualizar, Style = acento, Visibility = tarjeta.PuedeActualizar ? Visibility.Visible : Visibility.Collapsed };
         var btnAbrir = new Button { Content = "Abrir", Style = acento, Visibility = tarjeta.PuedeAbrir ? Visibility.Visible : Visibility.Collapsed };
@@ -490,14 +511,10 @@ public sealed partial class MainWindow : Window
             }
             catch (OperationCanceledException)
             {
-                // Lo bajado queda en Comun\descargas\<huella>.zip.parcial; el Instalador lo reanuda con Range la próxima vez.
+                // Lo bajado queda en Comun\descargas; la tarjeta recargada dice si hay algo que reanudar o completar.
                 EstablecerOcupado(false);
-                btnInstalar.Content = TarjetaHerramienta.TextoReanudarDescarga;
-                btnActualizar.Content = tarjeta.TextoReanudarActualizacion;
-                avisoTarjeta.Severity = InfoBarSeverity.Informational;
-                avisoTarjeta.Message = "Descarga cancelada. Lo ya bajado se guarda: pulsa «Reanudar» para seguir donde quedó.";
-                avisoTarjeta.IsOpen = true;
                 ActualizarEspacioTotal();
+                await RecargarTarjetaAsync(tarjeta.Id, contenedor);
             }
             catch (Exception ex)
             {

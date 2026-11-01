@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using System.Net;
 using System.Text;
 using Lanzador.Core;
@@ -362,6 +362,101 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
 
         Assert.Equal(2, codigo);
         Assert.Equal("Error: " + CatalogoNoVerificadoException.Mensaje, error.ToString().Trim());
+    }
+
+    // 7. Revisión de bloque: velocidad al reanudar, zip entero sin extraer, instalación cortada tras la app, textos tras cancelar.
+
+    [Fact]
+    public void Al_reanudar_el_primer_informe_fija_los_bytes_sin_inventar_velocidad()
+    {
+        var informes = new List<ProgresoDetallado>();
+        var coordinador = new Instalador.CoordinadorProgreso(new ProgresoSincrono(informes.Add), 200_000_000);
+        IProgress<DownloadProgress> p = coordinador.ParaArchivo("subtitular", 200_000_000, "Descargando")!;
+
+        Thread.Sleep(200);
+        p.Report(new DownloadProgress(100_000_000, 200_000_000)); // lo que ya había en el .parcial
+        Thread.Sleep(200);
+        p.Report(new DownloadProgress(100_000_000 + 50_000, 200_000_000));
+
+        Assert.Equal(0, informes[0].VelocidadBytesPorSegundo);
+        Assert.Null(informes[0].TiempoRestante);
+        Assert.InRange(informes[1].VelocidadBytesPorSegundo, 1, 50_000 * 1000.0 / 150);
+    }
+
+    [Fact]
+    public void El_sufijo_de_velocidad_sale_de_un_solo_sitio()
+    {
+        var p = new ProgresoDetallado("Descargando", "subtitular", 12_000_000, 28_000_000, 2_000_000, 12_000_000, 40_000_000, 0.3);
+        Assert.Equal(" (1.9 MB/s · quedan ~0:14)", p.TextoRitmo());
+        Assert.Equal(" (1.9 MB/s)", (p with { BytesAgregadosRecibidos = 40_000_000 }).TextoRitmo());
+        Assert.Equal("", (p with { VelocidadBytesPorSegundo = 0 }).TextoRitmo());
+        Assert.EndsWith(p.TextoRitmo(), p.TextoProgreso(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Zip_entero_sin_extraer_dice_instalar_ya_descargado_y_no_vuelve_a_bajar()
+    {
+        using var http = new HttpClient();
+        using var instalador = CrearInstalador(http);
+        Directory.CreateDirectory(CarpetasPrueba.Descargas);
+        File.WriteAllBytes(Path.Combine(CarpetasPrueba.Descargas, TestPayloads.Sha256Hex(_app1) + ".zip"), _app1);
+
+        TarjetaHerramienta t = Assert.Single(await instalador.ObtenerTarjetasAsync());
+        Assert.Equal(EstadoTarjeta.NoInstalada, t.Estado);
+        Assert.True(t.ZipDescargado);
+        Assert.Equal(0, t.DescargaParcialBytes);
+        Assert.False(t.PuedeReanudar);
+        Assert.Equal("Instalar (ya descargado)", t.TextoInstalar);
+        Assert.Equal("Descarga: 0.3 MB · ya descargado", t.TextoDescarga);
+        Assert.StartsWith("Descarga cancelada. El zip ya estaba completo", t.TextoCancelada, StringComparison.Ordinal);
+
+        await instalador.InstalarAsync("subtitular", (IProgress<ProgresoDetallado>?)null, CancellationToken.None);
+        Assert.Equal(0, _servidor.RequestCount("app1.zip"));
+        Assert.Equal(EstadoTarjeta.Instalada, Assert.Single(await instalador.ObtenerTarjetasAsync()).Estado);
+    }
+
+    [Fact]
+    public async Task Cancelar_tras_extraer_la_app_deja_completar_instalacion()
+    {
+        using var http = new HttpClient();
+        using var instalador = CrearInstalador(http);
+        using var cts = new CancellationTokenSource();
+        var progreso = new ProgresoSincrono(p =>
+        {
+            if (p.Fase.StartsWith("Descargando m", StringComparison.Ordinal))
+            {
+                cts.Cancel();
+            }
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => instalador.InstalarAsync("subtitular", progreso, cts.Token));
+        Assert.True(File.Exists(Path.Combine(CarpetasPrueba.Herramientas, "subtitular", "1.0.0", "Subtitular.exe")));
+
+        var tarjetas = await instalador.ObtenerTarjetasAsync();
+        TarjetaHerramienta t = Assert.Single(tarjetas);
+        Assert.Equal(EstadoTarjeta.Actualizable, t.Estado);
+        Assert.True(t.InstalacionIncompleta);
+        Assert.True(t.PuedeActualizar);
+        Assert.Equal("Completar instalación", t.TextoActualizar);
+        Assert.Equal("Versión 1.0.0 (faltan módulos o modelos)", t.TextoVersion);
+        Assert.StartsWith("Instalación cancelada", t.TextoCancelada, StringComparison.Ordinal);
+        Assert.Null(Actualizaciones.Aviso(tarjetas));
+
+        await instalador.InstalarAsync("subtitular", (IProgress<ProgresoDetallado>?)null, CancellationToken.None);
+        Assert.Equal(1, _servidor.RequestCount("app1.zip"));
+        Assert.True(File.Exists(Path.Combine(CarpetasPrueba.Modulos, "modulo-eco", "2.0.0", "modelos", "eco.bin")));
+        t = Assert.Single(await instalador.ObtenerTarjetasAsync());
+        Assert.Equal(EstadoTarjeta.Instalada, t.Estado);
+        Assert.False(t.InstalacionIncompleta);
+        Assert.Equal("Versión 1.0.0 (al día)", t.TextoVersion);
+    }
+
+    [Fact]
+    public void Texto_tras_cancelar_solo_promete_reanudar_si_quedo_algo()
+    {
+        Assert.Equal("Descarga cancelada.", Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.NoInstalada).TextoCancelada);
+        Assert.Contains("«Reanudar»", Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.NoInstalada, parcial: 5).TextoCancelada, StringComparison.Ordinal);
+        Assert.Equal("Reanudar actualización a 1.1.0", Tarjeta("1.0.0", "1.1.0", EstadoTarjeta.Actualizable, parcial: 5).TextoActualizar);
     }
 
     /// <summary>Informa en el mismo hilo de la descarga (Progress&lt;T&gt; lo pospone), para cancelar en el acto.</summary>

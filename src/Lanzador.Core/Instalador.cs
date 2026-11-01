@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -178,6 +178,12 @@ public sealed class Instalador : IDisposable
                 var v when v.CompareTo(app.Version) < 0 => EstadoTarjeta.Actualizable,
                 _ => EstadoTarjeta.Instalada,
             };
+            // Cortada tras extraer la app (bajando un módulo o modelo): Actualizable para que «Completar instalación» vuelva a InstalarAsync.
+            bool incompleta = estado == EstadoTarjeta.Instalada && InstalacionIncompleta(indice, app.Id, instalada!);
+            if (incompleta)
+            {
+                estado = EstadoTarjeta.Actualizable;
+            }
 
             tarjetas.Add(new TarjetaHerramienta(
                 app.Id,
@@ -189,32 +195,77 @@ public sealed class Instalador : IDisposable
                 espacio,
                 estado,
                 instalada is null ? null : BuscarEjecutable(app.Id),
-                estado == EstadoTarjeta.Instalada ? 0 : DescargaParcial(app)
+                estado == EstadoTarjeta.Instalada ? 0 : DescargaParcial(app),
+                estado != EstadoTarjeta.Instalada && ZipDescargado(app),
+                incompleta
             ));
         }
 
         return tarjetas;
     }
 
-    /// <summary>Bytes que ya hay en <c>Comun\descargas</c> del zip de esa entrada (el «.parcial» de una descarga cortada, o el zip entero sin extraer).</summary>
+    /// <summary>Bytes del «.parcial» que dejó en <c>Comun\descargas</c> una descarga cortada del zip de esa entrada.</summary>
     public long DescargaParcial(IndexEntry entrada)
     {
         ArgumentNullException.ThrowIfNull(entrada);
-        string zip = Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip");
+        string parcial = Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip" + FileDownloader.PartialSuffix);
         try
         {
-            if (File.Exists(zip))
-            {
-                return new FileInfo(zip).Length;
-            }
-
-            string parcial = zip + FileDownloader.PartialSuffix;
             return File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return 0;
         }
+    }
+
+    /// <summary>El zip entero de esa entrada sigue en <c>Comun\descargas</c> (se bajó pero no llegó a extraerse).</summary>
+    public bool ZipDescargado(IndexEntry entrada)
+    {
+        ArgumentNullException.ThrowIfNull(entrada);
+        return File.Exists(Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip"));
+    }
+
+    /// <summary>Faltan en <c>Comun\</c> módulos del manifiesto de la app instalada, o modelos de esos módulos.</summary>
+    public bool InstalacionIncompleta(SignedIndex indice, string id, PackageVersion instalada)
+    {
+        ArgumentNullException.ThrowIfNull(indice);
+        ArgumentNullException.ThrowIfNull(instalada);
+        try
+        {
+            foreach (string modulo in ModulosDelManifiesto(Path.Combine(_carpetas.Herramientas, id, instalada.ToString())))
+            {
+                IndexEntry? entrada = indice.Entries.Where(e => e.Id == modulo && e.Kind == IndexEntryKind.Module).MaxBy(e => e.Version);
+                if (entrada is null)
+                {
+                    continue;
+                }
+
+                string carpeta = Path.Combine(_carpetas.Modulos, modulo, entrada.Version.ToString());
+                if (!Directory.Exists(carpeta) || ModuleModels.Read(Path.Combine(carpeta, "paquete.json")).Any(m => !m.IsPresentIn(carpeta)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static string[] ModulosDelManifiesto(string carpetaApp)
+    {
+        string manifiesto = Path.Combine(carpetaApp, ManifiestoNombre);
+        if (!File.Exists(manifiesto))
+        {
+            return [];
+        }
+
+        using FileStream stream = File.OpenRead(manifiesto);
+        return JsonSerializer.Deserialize(stream, ManifiestoJson.Default.ManifiestoHerramienta)?.Modulos ?? [];
     }
 
     /// <summary>Carpeta que borra <see cref="Quitar"/>: <c>Herramientas\&lt;id&gt;</c>.</summary>
@@ -258,15 +309,9 @@ public sealed class Instalador : IDisposable
             File.Delete(zip);
         }
 
-        string manifiesto = Path.Combine(destino, ManifiestoNombre);
-        if (File.Exists(manifiesto))
+        foreach (string modulo in ModulosDelManifiesto(destino))
         {
-            await using FileStream stream = File.OpenRead(manifiesto);
-            ManifiestoHerramienta? leido = await JsonSerializer.DeserializeAsync(stream, ManifiestoJson.Default.ManifiestoHerramienta, ct).ConfigureAwait(false);
-            foreach (string modulo in leido?.Modulos ?? [])
-            {
-                await InstalarModuloAsync(indice, modulo, coordinador, ct).ConfigureAwait(false);
-            }
+            await InstalarModuloAsync(indice, modulo, coordinador, ct).ConfigureAwait(false);
         }
 
         foreach (PackageVersion vieja in VersionesInstaladas(id).Where(v => !v.Equals(entrada.Version)))
@@ -484,7 +529,7 @@ public sealed class Instalador : IDisposable
         }
     }
 
-    private sealed class CoordinadorProgreso(IProgress<ProgresoDetallado>? destino, long totalInicial)
+    internal sealed class CoordinadorProgreso(IProgress<ProgresoDetallado>? destino, long totalInicial)
     {
         private readonly Stopwatch _reloj = Stopwatch.StartNew();
         private long _bytesArchivosTerminados;
@@ -509,14 +554,20 @@ public sealed class Instalador : IDisposable
             }
 
             _ultimoTiempoMs = _reloj.ElapsedMilliseconds;
-            _ultimosBytesRecibidos = 0;
+            _ultimosBytesRecibidos = -1;
             _velocidad = 0;
 
             return new Reporte(p =>
             {
                 long ahora = _reloj.ElapsedMilliseconds;
                 long dt = ahora - _ultimoTiempoMs;
-                if (dt >= 150)
+                if (_ultimosBytesRecibidos < 0)
+                {
+                    // Al reanudar, el primer informe trae lo ya bajado: fija el punto de partida sin contarlo como velocidad.
+                    _ultimoTiempoMs = ahora;
+                    _ultimosBytesRecibidos = p.Received;
+                }
+                else if (dt >= 150)
                 {
                     long deltaBytes = p.Received - _ultimosBytesRecibidos;
                     if (deltaBytes >= 0)
@@ -575,10 +626,7 @@ public sealed class Instalador : IDisposable
         {
             if (value.BytesTotales > 0)
             {
-                string ritmo = value.VelocidadBytesPorSegundo > 0
-                    ? value.TiempoRestante is { } restante ? $" · {value.FormatearVelocidad()}, quedan ~{Tiempos.Formatear(restante)}" : $" · {value.FormatearVelocidad()}"
-                    : "";
-                destino.Report($"{value.Archivo}: {(int)(value.ProgresoArchivo * 100)} % de {Peso(value.BytesTotales)}{ritmo}");
+                destino.Report($"{value.Archivo}: {(int)(value.ProgresoArchivo * 100)} % de {Peso(value.BytesTotales)}{value.TextoRitmo()}");
             }
             else if (!string.IsNullOrEmpty(value.Fase))
             {
