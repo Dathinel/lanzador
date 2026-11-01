@@ -10,6 +10,7 @@ El punto de entrada de las herramientas de IA de Dathinel para Windows: lista Su
 - Baja cada herramienta (zip autocontenido, sin instalador) y sus modelos, con reanudación y SHA-256 comprobado, y los deja en una carpeta del usuario.
 - Comparte entre herramientas lo que es común (FFmpeg, módulos y modelos), para no bajarlo dos veces.
 - La ventana muestra una tarjeta por herramienta (versión instalada y disponible, peso de descarga, espacio que ocupa y lo compartido), con Instalar o Reanudar, Abrir, «Actualizar a X» (solo si en el catálogo hay una versión más nueva que la instalada; con varias, la cabecera cuenta «2 actualizaciones»), Quitar (con confirmación que dice qué carpeta borra) y Cancelar; busca actualizaciones al abrir y avisa discreto si las hay, y si el índice no se verifica lo dice en español en vez de ofrecer nada.
+- Avisa también de versiones nuevas del propio Lanzador: como mucho una vez al día pregunta a la API pública de GitHub (sin token, 5 s de límite, silencio sin red) por la última release de `Dathinel/lanzador` y, si es más nueva, muestra una franja discreta con «Ver novedades» y «Más tarde». Se apaga en «Acerca de» («Avisar cuando haya una versión nueva»), donde también está «Buscar actualizaciones».
 
 ## Cómo se ejecuta (desarrollo)
 

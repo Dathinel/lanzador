@@ -107,10 +107,14 @@ La lógica de todo esto está probada en `CalidadDeVidaTests`; aquí va lo que s
 
 ---
 
-## 10. Avisos de versiones nuevas (sin publicar)
+## 10. Avisos de versiones nuevas: herramientas y el propio Lanzador (sin publicar)
 
-La lógica está en `ActualizacionesTests`; aquí lo que solo se ve con la ventana.
+La lógica está en `ActualizacionesTests` y `ComprobadorLanzadorTests`; aquí lo que solo se ve con la ventana.
 
 1. **«Actualizar a X»:** con una herramienta instalada (carpeta `Herramientas\<app>\1.0.0`) y la 1.1.0 en el catálogo, la tarjeta dice «Instalada 1.0.0 · Disponible 1.1.0» y, donde iría «Instalar», un botón azul «Actualizar a 1.1.0» (mismo estilo que «Instalar»), junto a «Abrir» y «Quitar». Púlsalo: descarga con progreso, verifica e instala por encima; al terminar la tarjeta pasa a «Versión 1.1.0 (al día)» sin botón de actualizar y la carpeta 1.0.0 ha desaparecido.
 2. **Recuento:** con dos herramientas con versión nueva, a la izquierda de «Buscar actualizaciones» sale en azul «2 actualizaciones»; con una sola o con todas al día no sale nada.
 3. **Al día:** con todas las instaladas iguales o más nuevas que el catálogo, nada cambia respecto a antes: ni botón de actualizar, ni recuento, ni aviso.
+4. **Lanzador nuevo (lógica en `ComprobadorLanzadorTests`):** hoy solo hay prereleases publicadas, así que GitHub no devuelve ninguna «latest» y la franja no sale; para verla, publica una release normal con etiqueta `v9.9.9` (o apunta `FuenteReleasesGitHub` a un servidor local como hacen las pruebas). Al abrir, bajo la cabecera debe salir una franja azul suave «Lanzador 9.9.9 disponible» con «Ver novedades» (abre la página de la release en el navegador) y «Más tarde».
+5. **Más tarde:** púlsalo: la franja desaparece y en `%LOCALAPPDATA%\Dathinel\Lanzador\ajustes.json` queda `versionDescartada: "9.9.9"`. Cierra y abre el Lanzador: no vuelve a salir. Con «Buscar actualizaciones» sí sale, porque se pidió a mano.
+6. **24 h:** con la franja ya vista, cierra y abre: no se consulta GitHub otra vez (la hora de `ultimaConsultaLanzador` en `ajustes.json` no cambia) hasta pasadas 24 h. Sin red, al abrir no debe salir nada ni tardar más: la consulta va fuera del hilo de la ventana y se rinde a los 5 s.
+7. **Acerca de:** el interruptor «Avisar cuando haya una versión nueva» viene activado; apágalo y en `ajustes.json` queda `avisarVersionNueva: false`; al abrir ya no se consulta. El enlace «Buscar actualizaciones» cierra el diálogo y busca al momento (también el catálogo): con todo al día sale el aviso «No hay nada nuevo: el Lanzador y las herramientas están al día.»; sin red, «Las herramientas están al día. No se pudo consultar si hay un Lanzador nuevo; inténtalo más tarde.»; con herramientas viejas, las nombra como antes.

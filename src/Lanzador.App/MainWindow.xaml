@@ -42,8 +42,20 @@
             </StackPanel>
         </Grid>
 
-        <!-- Avisos: errores de la ventana y, discreto, «hay actualizaciones» al abrir o al buscar -->
+        <!-- Avisos: franja discreta de «Lanzador X disponible», errores de la ventana y «hay actualizaciones» al abrir o al buscar -->
         <StackPanel Grid.Row="1" Spacing="8" Margin="32,0,32,8">
+            <Border x:Name="FranjaLanzador" Visibility="Collapsed" Background="{ThemeResource AcentoSuaveBrush}" CornerRadius="8" Padding="16,6">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TextoFranja" Style="{StaticResource TextoAcento}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <HyperlinkButton x:Name="EnlaceNovedades" Grid.Column="1" Content="Ver novedades" VerticalAlignment="Center" />
+                    <HyperlinkButton Grid.Column="2" Content="Más tarde" Click="OnMasTardeClick" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
             <InfoBar x:Name="AvisoIndice" IsOpen="False" IsClosable="True" Severity="Error" />
             <InfoBar x:Name="AvisoActualizaciones" IsOpen="False" IsClosable="True" Severity="Informational" Title="Actualizaciones" />
         </StackPanel>

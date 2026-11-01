@@ -17,6 +17,9 @@ public sealed partial class MainWindow : Window
 {
     private readonly HttpClient _http;
     private readonly Instalador _instalador;
+    private readonly ComprobadorLanzador _comprobador;
+    private Ajustes _ajustes;
+    private ComprobacionLanzador? _ultimaComprobacion;
     private EstadoVentana? _ventanaRestaurada;
 
     public MainWindow()
@@ -47,9 +50,11 @@ public sealed partial class MainWindow : Window
         });
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Lanzador/{Instalador.Version}");
         _instalador = new Instalador(carpetas, indice, clave, _http);
+        _ajustes = Ajustes.Cargar(Ajustes.RutaPorDefecto);
+        _comprobador = new ComprobadorLanzador(new FuenteReleasesGitHub(_http, Instalador.Version), Instalador.Version);
 
         CompositionTarget.Rendering += OnFirstFrame;
-        _ = CargarCatalogoAsync(refrescar: false);
+        _ = BuscarActualizacionesAsync(aMano: false);
     }
 
     [LibraryImport("user32.dll")]
@@ -130,7 +135,65 @@ public sealed partial class MainWindow : Window
 
     private async void OnRefrescarClick(object sender, RoutedEventArgs e)
     {
-        await CargarCatalogoAsync(refrescar: true);
+        await BuscarActualizacionesAsync(aMano: true);
+    }
+
+    /// <summary>«Más tarde»: esa versión del Lanzador no vuelve a avisar; la siguiente sí.</summary>
+    private void OnMasTardeClick(object sender, RoutedEventArgs e)
+    {
+        FranjaLanzador.Visibility = Visibility.Collapsed;
+        if (_ultimaComprobacion is { } comprobacion)
+        {
+            GuardarAjustes(comprobacion.Descartar());
+        }
+    }
+
+    private void GuardarAjustes(Ajustes ajustes)
+    {
+        _ajustes = ajustes;
+        try
+        {
+            ajustes.Guardar(Ajustes.RutaPorDefecto);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Perder los ajustes no merece un error en la ventana: se vuelven a aplicar los de fábrica la próxima vez.
+        }
+    }
+
+    /// <summary>
+    /// Al abrir y con «Buscar actualizaciones»: carga el catálogo y, después, mira si hay un Lanzador nuevo (al abrir solo si
+    /// tocan las 24 h y el aviso está activado; a mano siempre, y dice cuando no hay nada nuevo). Sin red o con respuesta rara, silencio.
+    /// </summary>
+    private async Task BuscarActualizacionesAsync(bool aMano)
+    {
+        IReadOnlyList<TarjetaHerramienta>? tarjetas = await CargarCatalogoAsync(refrescar: aMano);
+        try
+        {
+            ComprobacionLanzador comprobacion = await _comprobador.ComprobarAsync(_ajustes, aMano);
+            _ultimaComprobacion = comprobacion;
+            if (!ReferenceEquals(comprobacion.Ajustes, _ajustes))
+            {
+                GuardarAjustes(comprobacion.Ajustes);
+            }
+
+            if (comprobacion.TextoFranja is { } texto && comprobacion.Release is { } release)
+            {
+                TextoFranja.Text = texto;
+                EnlaceNovedades.NavigateUri = release.Url;
+                FranjaLanzador.Visibility = Visibility.Visible;
+            }
+
+            if (aMano && tarjetas is not null && ComprobadorLanzador.ResumenBusqueda(tarjetas, comprobacion) is { } resumen)
+            {
+                AvisoActualizaciones.Message = resumen;
+                AvisoActualizaciones.IsOpen = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            MostrarErrorInesperado(MensajesError.Describir(ex));
+        }
     }
 
     private void OnAbrirCarpetaClick(object sender, RoutedEventArgs e)
@@ -165,7 +228,21 @@ public sealed partial class MainWindow : Window
                 Content = "Código y licencia del Lanzador: github.com/Dathinel/lanzador",
                 NavigateUri = new Uri("https://github.com/Dathinel/lanzador")
             });
-            await new ContentDialog { Title = "Acerca de", Content = contenido, CloseButtonText = "Cerrar", XamlRoot = Content.XamlRoot }.ShowAsync();
+
+            // Versiones nuevas del propio Lanzador: el interruptor (activado por omisión) y buscar ahora mismo, también el catálogo.
+            var interruptor = new ToggleSwitch { Header = "Avisar cuando haya una versión nueva", IsOn = _ajustes.AvisarVersionNueva, OnContent = "Activado", OffContent = "Desactivado" };
+            interruptor.Toggled += (_, _) => GuardarAjustes(_ajustes with { AvisarVersionNueva = interruptor.IsOn });
+            contenido.Children.Add(interruptor);
+            var buscar = new HyperlinkButton { Content = "Buscar actualizaciones" };
+            contenido.Children.Add(buscar);
+
+            var dialogo = new ContentDialog { Title = "Acerca de", Content = contenido, CloseButtonText = "Cerrar", XamlRoot = Content.XamlRoot };
+            buscar.Click += (_, _) =>
+            {
+                dialogo.Hide();
+                _ = BuscarActualizacionesAsync(aMano: true);
+            };
+            await dialogo.ShowAsync();
         }
         catch (Exception ex)
         {
@@ -187,7 +264,8 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>Lee el catálogo (al abrir y al pulsar «Buscar actualizaciones»), pinta las tarjetas y avisa discreto si hay versiones nuevas.</summary>
-    private async Task CargarCatalogoAsync(bool refrescar)
+    /// <returns>Las tarjetas, o <c>null</c> si el catálogo no se pudo leer (el panel ya lo dice).</returns>
+    private async Task<IReadOnlyList<TarjetaHerramienta>?> CargarCatalogoAsync(bool refrescar)
     {
         BotonRefrescar.IsEnabled = false;
         BotonReintentar.IsEnabled = false;
@@ -220,6 +298,8 @@ public sealed partial class MainWindow : Window
                 AvisoActualizaciones.Message = aviso;
                 AvisoActualizaciones.IsOpen = true;
             }
+
+            return tarjetas;
         }
         catch (Exception ex)
         {
@@ -228,6 +308,7 @@ public sealed partial class MainWindow : Window
             TituloEstadoCatalogo.Text = titulo;
             TextoEstadoCatalogo.Text = detalle;
             EstadoCatalogo.Visibility = Visibility.Visible;
+            return null;
         }
         finally
         {
