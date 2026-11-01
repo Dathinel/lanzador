@@ -103,7 +103,7 @@ public sealed class ComprobadorLanzadorTests : IDisposable
         c = await Comprobador(tarda).ComprobarAsync(new Ajustes(), aMano: true);
         Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
 
-        // Un 404 de releases/latest (solo prereleases publicadas) también es silencio.
+        // Un 404 sin resolver por la fuente sigue siendo un error de consulta.
         var noHay = new FuenteFalsa(new HttpRequestException("404", null, System.Net.HttpStatusCode.NotFound));
         c = await Comprobador(noHay).ComprobarAsync(new Ajustes(), aMano: false);
         Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
@@ -272,6 +272,60 @@ public sealed class ComprobadorLanzadorTests : IDisposable
     }
 
     [Fact]
+    public async Task Con_latest_404_usa_la_primera_release_no_borrador_aunque_sea_prerelease()
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        string json = $$"""
+            [
+                { "tag_name": "v9.0.0", "draft": true, "html_url": "https://github.com/Dathinel/lanzador/releases/tag/v9.0.0" },
+                { "tag_name": "v1.1.0-beta.1", "draft": false, "prerelease": true, "html_url": "https://github.com/Dathinel/lanzador/releases/tag/v1.1.0-beta.1" },
+                {{Release("v2.0.0")}}
+            ]
+            """;
+        servidor.Map("releases", TestResponse.File(System.Text.Encoding.UTF8.GetBytes(json)));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.VersionNueva, c.Resultado);
+        Assert.Equal(PackageVersion.Parse("1.1.0-beta.1"), c.Release!.Version);
+        Assert.Equal(new Uri("https://github.com/Dathinel/lanzador/releases/tag/v1.1.0-beta.1"), c.Release.Url);
+        Assert.Equal(Inicio, c.Ajustes.UltimaConsultaLanzador);
+        Assert.Equal(new[] { "/releases/latest", "/releases" }, servidor.Requests.Select(p => p.Path));
+        Assert.All(servidor.Requests, p =>
+        {
+            Assert.Equal("Lanzador/1.0.0", p.Headers["User-Agent"]);
+            Assert.Contains("application/vnd.github+json", p.Headers["Accept"], StringComparison.Ordinal);
+            Assert.False(p.Headers.ContainsKey("Authorization"));
+        });
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("""[{ "tag_name": "v9.0.0", "draft": true }]""")]
+    public async Task Con_latest_404_y_sin_releases_publicadas_esta_al_dia(string json)
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        servidor.Map("releases", TestResponse.File(System.Text.Encoding.UTF8.GetBytes(json)));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.AlDia, c.Resultado);
+        Assert.Null(c.Release);
+        Assert.Null(c.TextoFranja);
+        Assert.Equal(Inicio, c.Ajustes.UltimaConsultaLanzador);
+        Assert.Equal("No hay nada nuevo: el Lanzador y las herramientas están al día.", ComprobadorLanzador.ResumenBusqueda([], c));
+        Assert.Equal(new[] { "/releases/latest", "/releases" }, servidor.Requests.Select(p => p.Path));
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Fact]
     public async Task La_fuente_real_con_404_o_servidor_colgado_es_silencio()
     {
         await using TestHttpServer servidor = TestHttpServer.Start();
@@ -310,10 +364,10 @@ public sealed class ComprobadorLanzadorTests : IDisposable
 
         public int Consultas { get; private set; }
 
-        public Task<string> ObtenerUltimaAsync(CancellationToken ct)
+        public Task<string?> ObtenerUltimaAsync(CancellationToken ct)
         {
             Consultas++;
-            return _error is null ? Task.FromResult(_json!) : Task.FromException<string>(_error);
+            return _error is null ? Task.FromResult(_json) : Task.FromException<string?>(_error);
         }
     }
 }
