@@ -74,12 +74,17 @@ public sealed record TarjetaHerramienta(
         _ => $"En disco: {EspacioInstalada.Formatear()}"
     };
 
-    public string TextoInstalar => ZipDescargado ? "Instalar (ya descargado)" : PuedeReanudar ? "Reanudar descarga" : "Instalar";
+    public string TextoInstalar => ZipDescargado ? "Instalar (ya descargado)" : PuedeReanudar ? TextoReanudarDescarga : "Instalar";
 
+    /// <summary>«Actualizar a 1.1.0»: el botón dice a qué versión va, con el mismo estilo de acento que «Instalar».</summary>
     public string TextoActualizar => InstalacionIncompleta ? "Completar instalación"
-        : ZipDescargado ? "Actualizar (ya descargado)"
-        : PuedeReanudar ? "Reanudar actualización"
-        : "Actualizar";
+        : ZipDescargado ? $"Actualizar a {VersionDisponible} (ya descargado)"
+        : PuedeReanudar ? TextoReanudarActualizacion
+        : $"Actualizar a {VersionDisponible}";
+
+    public static string TextoReanudarDescarga => "Reanudar descarga";
+
+    public string TextoReanudarActualizacion => $"Reanudar actualización a {VersionDisponible}";
 
     /// <summary>Lo que dice la tarjeta recién recargada tras cancelar: qué quedó y qué botón sigue.</summary>
     public string TextoCancelada => InstalacionIncompleta ? "Instalación cancelada. Lo ya bajado se guarda: pulsa «Completar instalación» para seguir."
@@ -123,6 +128,14 @@ public static class Actualizaciones
 
         string lista = string.Join(", ", pendientes.Select(t => $"{t.Nombre} {t.VersionInstalada} → {t.VersionDisponible}"));
         return pendientes.Count == 1 ? $"Hay una actualización: {lista}." : $"Hay {pendientes.Count} actualizaciones: {lista}.";
+    }
+
+    /// <summary>Recuento discreto para la cabecera («2 actualizaciones»); solo cuando hay más de una, y <c>null</c> si no.</summary>
+    public static string? Recuento(IReadOnlyList<TarjetaHerramienta> tarjetas)
+    {
+        ArgumentNullException.ThrowIfNull(tarjetas);
+        int pendientes = tarjetas.Count(t => t.Estado == EstadoTarjeta.Actualizable);
+        return pendientes > 1 ? $"{pendientes} actualizaciones" : null;
     }
 }
 

@@ -115,7 +115,7 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
         TarjetaHerramienta alDia = Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.Instalada);
         Assert.Equal("Versión 1.0.0 (al día)", alDia.TextoVersion);
         Assert.False(alDia.PuedeActualizar);
-        Assert.Equal("Actualizar", alDia.TextoActualizar);
+        Assert.Equal("Actualizar a 1.0.0", alDia.TextoActualizar);
 
         TarjetaHerramienta vieja = Tarjeta("1.0.0", "1.1.0", EstadoTarjeta.Actualizable);
         Assert.Equal("Instalada 1.0.0 · Disponible 1.1.0", vieja.TextoVersion);
@@ -456,7 +456,7 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
     {
         Assert.Equal("Descarga cancelada.", Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.NoInstalada).TextoCancelada);
         Assert.Contains("«Reanudar»", Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.NoInstalada, parcial: 5).TextoCancelada, StringComparison.Ordinal);
-        Assert.Equal("Reanudar actualización", Tarjeta("1.0.0", "1.1.0", EstadoTarjeta.Actualizable, parcial: 5).TextoActualizar);
+        Assert.Equal("Reanudar actualización a 1.1.0", Tarjeta("1.0.0", "1.1.0", EstadoTarjeta.Actualizable, parcial: 5).TextoActualizar);
     }
 
     /// <summary>Informa en el mismo hilo de la descarga (Progress&lt;T&gt; lo pospone), para cancelar en el acto.</summary>
