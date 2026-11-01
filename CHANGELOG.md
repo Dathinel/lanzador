@@ -3,6 +3,7 @@
 ## Sin publicar
 
 ### Añadido
+- Aviso de versiones nuevas de las herramientas: al cargar el catálogo se compara la versión de cada entrada `app` con la instalada en el PC (la carpeta `Herramientas\<app>\<versión>`); la que tiene versión nueva muestra «Actualizar a 1.1.0» en el sitio de «Instalar», con el mismo estilo de botón, y al pulsarlo se descarga, se verifican firma y huella y se instala por encima como siempre. Si hay más de una, la cabecera dice discreto «2 actualizaciones»; con todo al día no cambia nada.
 - Cada tarjeta muestra la versión instalada junto a la del catálogo («Instalada 1.0.0 · Disponible 1.1.0») y el botón «Actualizar» solo aparece cuando la instalada es más vieja; una instalada más nueva que el catálogo cuenta como al día.
 - «Buscar actualizaciones» al abrir (y con el botón de la cabecera, antes «Actualizar catálogo»): si hay versiones nuevas sale un aviso discreto que las nombra («Hay una actualización: Subtitular 1.0.0 → 1.1.0»).
 - Progreso de descarga con velocidad y tiempo restante medidos a la velocidad real («12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)»), también en la CLI; la regla de tres sobre la fracción queda solo de respaldo.

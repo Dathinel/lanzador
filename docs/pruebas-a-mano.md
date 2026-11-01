@@ -65,7 +65,7 @@ El ejecutable listo para usar se encuentra en:
 1. Una vez instalada la herramienta:
    - **«Abrir»:** Debe aparecer activo con estilo de acento. Púlsalo: debe abrir la aplicación instalada configurando la ruta a `Comun\modulos`.
    - **«Quitar»:** Púlsalo: debe eliminar la carpeta de la herramienta en segundos. Lo que estuviera en `Comun\modulos` y `Comun\modelos` permanece intacto para que otras herramientas no tengan que volver a descargarlo.
-   - **«Actualizar»:** Solo debe estar disponible cuando la versión del catálogo sea superior a la versión instalada en disco.
+   - **«Actualizar a X»:** Solo debe estar disponible cuando la versión del catálogo sea superior a la versión instalada en disco.
 
 ---
 
@@ -97,10 +97,20 @@ Capturas de referencia en `docs/capturas/` (tema oscuro). Lo que solo tú puedes
 
 La lógica de todo esto está probada en `CalidadDeVidaTests`; aquí va lo que solo se ve con la ventana.
 
-1. **Versiones y «Actualizar»:** con una herramienta instalada y una versión más nueva en el catálogo, la tarjeta dice «Instalada X · Disponible Y» y aparece «Actualizar»; al día dice «Versión X (al día)» y no hay botón.
+1. **Versiones y «Actualizar»:** con una herramienta instalada y una versión más nueva en el catálogo, la tarjeta dice «Instalada X · Disponible Y» y aparece «Actualizar a Y» (ver bloque 10); al día dice «Versión X (al día)» y no hay botón.
 2. **Buscar actualizaciones al abrir:** si hay versiones nuevas, bajo la cabecera sale una barra azul discreta «Actualizaciones: Hay una actualización: Subtitular 1.0.0 → 1.1.0.» que se puede cerrar. El botón de la cabecera ahora se llama «Buscar actualizaciones» y hace lo mismo.
 3. **Velocidad y tiempo restante:** al instalar, la línea de bytes dice «subtitular: 12.0 MB de 28.0 MB (2.3 MB/s · quedan ~0:07)» y la derecha «0:42 · quedan ~0:07» con el mismo número (sale de la velocidad real, no de la fracción).
 4. **Reanudar:** pulsa «Cancelar» a mitad de descarga. Debe salir un aviso azul «Descarga cancelada. Lo ya bajado se guarda…», el botón pasa a «Reanudar descarga» y en `Comun\descargas` queda un `.zip.parcial`. Al reanudar, la barra arranca donde quedó y termina; el `.parcial` desaparece. Cierra y vuelve a abrir el Lanzador antes de reanudar: la tarjeta debe decir «X MB ya bajados, se reanudará».
 5. **Abrir:** solo aparece si la app trae un exe; púlsalo y la app debe abrirse.
 6. **Quitar con confirmación:** pulsa «Quitar»: diálogo «¿Quitar Subtitular?» con la carpeta exacta que se borra, lo que ocupa y que lo compartido se queda. Intro o Esc cancelan (el botón por defecto es «Cancelar»); solo «Quitar» borra.
 7. **Firma inválida:** arranca con `--indice` apuntando a un índice con `.sig` de otra clave (o sin red). En el sitio de la lista debe salir el panel con el icono, «El catálogo no se puede verificar» (o «Sin conexión con el catálogo») y el texto en español con qué hacer, más «Volver a intentar». Nunca una lista vacía sin explicación ni texto en inglés.
+
+---
+
+## 10. Avisos de versiones nuevas (sin publicar)
+
+La lógica está en `ActualizacionesTests`; aquí lo que solo se ve con la ventana.
+
+1. **«Actualizar a X»:** con una herramienta instalada (carpeta `Herramientas\<app>\1.0.0`) y la 1.1.0 en el catálogo, la tarjeta dice «Instalada 1.0.0 · Disponible 1.1.0» y, donde iría «Instalar», un botón azul «Actualizar a 1.1.0» (mismo estilo que «Instalar»), junto a «Abrir» y «Quitar». Púlsalo: descarga con progreso, verifica e instala por encima; al terminar la tarjeta pasa a «Versión 1.1.0 (al día)» sin botón de actualizar y la carpeta 1.0.0 ha desaparecido.
+2. **Recuento:** con dos herramientas con versión nueva, a la izquierda de «Buscar actualizaciones» sale en azul «2 actualizaciones»; con una sola o con todas al día no sale nada.
+3. **Al día:** con todas las instaladas iguales o más nuevas que el catálogo, nada cambia respecto a antes: ni botón de actualizar, ni recuento, ni aviso.

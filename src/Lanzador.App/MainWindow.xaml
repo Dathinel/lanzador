@@ -35,7 +35,11 @@
                 <TextBlock Text="Lanzador" FontFamily="{StaticResource FuenteTitulo}" FontSize="32" FontWeight="SemiBold" LineHeight="36" />
                 <TextBlock Text="Las herramientas, listas" FontFamily="{StaticResource FuenteTitulo}" FontSize="16" Style="{StaticResource TextoAcento}" />
             </StackPanel>
-            <Button Grid.Column="2" x:Name="BotonRefrescar" Content="Buscar actualizaciones" Click="OnRefrescarClick" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <!-- Recuento discreto («2 actualizaciones») solo cuando hay más de una herramienta con versión nueva -->
+                <TextBlock x:Name="TextoRecuento" Visibility="Collapsed" Style="{StaticResource TextoAcento}" VerticalAlignment="Center" />
+                <Button x:Name="BotonRefrescar" Content="Buscar actualizaciones" Click="OnRefrescarClick" VerticalAlignment="Center" />
+            </StackPanel>
         </Grid>
 
         <!-- Avisos: errores de la ventana y, discreto, «hay actualizaciones» al abrir o al buscar -->

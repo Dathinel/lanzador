@@ -193,6 +193,7 @@ public sealed partial class MainWindow : Window
         BotonReintentar.IsEnabled = false;
         AvisoIndice.IsOpen = false;
         AvisoActualizaciones.IsOpen = false;
+        TextoRecuento.Visibility = Visibility.Collapsed;
         EstadoVacio.Visibility = Visibility.Collapsed;
         EstadoCatalogo.Visibility = Visibility.Collapsed;
         ListaTarjetas.Children.Clear();
@@ -207,6 +208,13 @@ public sealed partial class MainWindow : Window
             }
 
             EstadoVacio.Visibility = tarjetas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            // «2 actualizaciones» junto al botón de la cabecera, solo si hay más de una; con una basta el botón de su tarjeta.
+            if (Actualizaciones.Recuento(tarjetas) is { } recuento)
+            {
+                TextoRecuento.Text = recuento;
+                TextoRecuento.Visibility = Visibility.Visible;
+            }
+
             if (Actualizaciones.Aviso(tarjetas) is { } aviso)
             {
                 AvisoActualizaciones.Message = aviso;
@@ -304,15 +312,16 @@ public sealed partial class MainWindow : Window
         // Fila 5: botones de acción
         var filaBotones = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         Style acento = (Style)Application.Current.Resources["AccentButtonStyle"];
-        // «Instalar» pasa a «Reanudar descarga» si quedó un .parcial de la versión disponible; «Actualizar» solo cuando la instalada es más vieja.
+        // «Instalar» pasa a «Reanudar descarga» si quedó un .parcial de la versión disponible; «Actualizar a X» ocupa su sitio (mismo
+        // estilo de acento) solo cuando la instalada es más vieja que la del catálogo.
         var btnInstalar = new Button { Content = tarjeta.TextoInstalar, Style = acento, Visibility = tarjeta.PuedeInstalar ? Visibility.Visible : Visibility.Collapsed };
+        var btnActualizar = new Button { Content = tarjeta.TextoActualizar, Style = acento, Visibility = tarjeta.PuedeActualizar ? Visibility.Visible : Visibility.Collapsed };
         var btnAbrir = new Button { Content = "Abrir", Style = acento, Visibility = tarjeta.PuedeAbrir ? Visibility.Visible : Visibility.Collapsed };
-        var btnActualizar = new Button { Content = tarjeta.TextoActualizar, Visibility = tarjeta.PuedeActualizar ? Visibility.Visible : Visibility.Collapsed };
         var btnQuitar = new Button { Content = "Quitar", Visibility = tarjeta.PuedeQuitar ? Visibility.Visible : Visibility.Collapsed };
         var btnCancelar = new Button { Content = "Cancelar", Visibility = Visibility.Collapsed };
         filaBotones.Children.Add(btnInstalar);
-        filaBotones.Children.Add(btnAbrir);
         filaBotones.Children.Add(btnActualizar);
+        filaBotones.Children.Add(btnAbrir);
         filaBotones.Children.Add(btnQuitar);
         filaBotones.Children.Add(btnCancelar);
         panel.Children.Add(filaBotones);
@@ -402,8 +411,8 @@ public sealed partial class MainWindow : Window
             {
                 // Lo bajado queda en Comun\descargas\<huella>.zip.parcial; el Instalador lo reanuda con Range la próxima vez.
                 EstablecerOcupado(false);
-                btnInstalar.Content = "Reanudar descarga";
-                btnActualizar.Content = "Reanudar actualización";
+                btnInstalar.Content = TarjetaHerramienta.TextoReanudarDescarga;
+                btnActualizar.Content = tarjeta.TextoReanudarActualizacion;
                 avisoTarjeta.Severity = InfoBarSeverity.Informational;
                 avisoTarjeta.Message = "Descarga cancelada. Lo ya bajado se guarda: pulsa «Reanudar» para seguir donde quedó.";
                 avisoTarjeta.IsOpen = true;
