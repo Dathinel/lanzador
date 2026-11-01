@@ -49,10 +49,10 @@ public sealed record ReleaseLanzador(PackageVersion Version, Uri Url);
 /// <summary>De dónde sale el JSON de la última release; en la app, la API pública de GitHub; en las pruebas, datos falsos.</summary>
 public interface IFuenteReleases
 {
-    /// <summary>El JSON de <c>releases/latest</c>.</summary>
+    /// <summary>El JSON de la última release publicada; <c>null</c> si no hay ninguna.</summary>
     /// <exception cref="HttpRequestException">Sin red o respuesta que no es 200.</exception>
     /// <exception cref="OperationCanceledException">Pasó el tiempo límite.</exception>
-    Task<string> ObtenerUltimaAsync(CancellationToken ct);
+    Task<string?> ObtenerUltimaAsync(CancellationToken ct);
 }
 
 /// <summary>Consulta <c>api.github.com</c> sin token, con <c>User-Agent</c> «Lanzador/versión» y 5 s de tiempo límite.</summary>
@@ -72,26 +72,62 @@ public sealed class FuenteReleasesGitHub(HttpClient http, PackageVersion version
     private readonly Uri _url = url ?? Url;
     private readonly TimeSpan _tiempoLimite = tiempoLimite ?? TiempoLimite;
 
-    public async Task<string> ObtenerUltimaAsync(CancellationToken ct)
+    public async Task<string?> ObtenerUltimaAsync(CancellationToken ct)
     {
         using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limite.CancelAfter(_tiempoLimite);
-        using var peticion = new HttpRequestMessage(HttpMethod.Get, _url);
+        try
+        {
+            return await ObtenerJsonAsync(_url, limite.Token).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // latest excluye las prereleases: si no hay una estable, consultar las publicadas.
+        }
+
+        string json = await ObtenerJsonAsync(new Uri(_url, "../releases?per_page=10"), limite.Token).ConfigureAwait(false);
+        using JsonDocument documento = JsonDocument.Parse(json);
+        if (documento.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("La lista de releases de GitHub no es un array.");
+        }
+
+        foreach (JsonElement release in documento.RootElement.EnumerateArray())
+        {
+            if (release.ValueKind != JsonValueKind.Object
+                || !release.TryGetProperty("draft", out JsonElement borrador)
+                || borrador.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                throw new JsonException("La release de GitHub no indica si es un borrador.");
+            }
+
+            if (!borrador.GetBoolean())
+            {
+                return release.GetRawText();
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<string> ObtenerJsonAsync(Uri url, CancellationToken ct)
+    {
+        using var peticion = new HttpRequestMessage(HttpMethod.Get, url);
         peticion.Headers.UserAgent.Clear();
         peticion.Headers.UserAgent.ParseAdd(_agente);
         peticion.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using HttpResponseMessage respuesta = await _http.SendAsync(peticion, HttpCompletionOption.ResponseHeadersRead, limite.Token).ConfigureAwait(false);
+        using HttpResponseMessage respuesta = await _http.SendAsync(peticion, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         respuesta.EnsureSuccessStatusCode();
         if (respuesta.Content.Headers.ContentLength > MaximoBytes)
         {
             throw new HttpRequestException("La respuesta de GitHub es demasiado grande para ser una release.");
         }
 
-        await using Stream cuerpo = await respuesta.Content.ReadAsStreamAsync(limite.Token).ConfigureAwait(false);
+        await using Stream cuerpo = await respuesta.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using var memoria = new MemoryStream();
         byte[] trozo = new byte[16 * 1024];
         int leidos;
-        while ((leidos = await cuerpo.ReadAsync(trozo, limite.Token).ConfigureAwait(false)) > 0)
+        while ((leidos = await cuerpo.ReadAsync(trozo, ct).ConfigureAwait(false)) > 0)
         {
             if (memoria.Length + leidos > MaximoBytes)
             {
@@ -111,7 +147,7 @@ public enum ResultadoLanzador
     /// <summary>Hay una release más nueva que esta versión: la franja la anuncia.</summary>
     VersionNueva,
 
-    /// <summary>La última release es esta versión o más vieja.</summary>
+    /// <summary>No hay releases publicadas, o la última es esta versión o más vieja.</summary>
     AlDia,
 
     /// <summary>Hay versión nueva, pero se pulsó «Más tarde» para esa misma versión: silencio hasta la siguiente.</summary>
@@ -211,7 +247,7 @@ public sealed class ComprobadorLanzador(IFuenteReleases fuente, PackageVersion v
             return new ComprobacionLanzador(ResultadoLanzador.NoTocaba, null, ajustes);
         }
 
-        string json;
+        string? json;
         try
         {
             json = await _fuente.ObtenerUltimaAsync(ct).ConfigureAwait(false);
@@ -220,13 +256,18 @@ public sealed class ComprobadorLanzador(IFuenteReleases fuente, PackageVersion v
         {
             throw;
         }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException)
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or IOException or JsonException)
         {
             // Sin red, tiempo límite o GitHub que no responde: no se anota la consulta, para volver a intentarlo al abrir.
             return new ComprobacionLanzador(ResultadoLanzador.SinRespuesta, null, ajustes);
         }
 
         Ajustes consultados = ajustes with { UltimaConsultaLanzador = ahora };
+        if (json is null)
+        {
+            return new ComprobacionLanzador(ResultadoLanzador.AlDia, null, consultados);
+        }
+
         ReleaseLanzador? release = Interpretar(json);
         if (release is null)
         {
