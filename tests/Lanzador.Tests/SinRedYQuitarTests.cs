@@ -146,6 +146,26 @@ public sealed class SinRedYQuitarTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Recargar_tarjeta_sin_red_conserva_estado_y_acciones()
+    {
+        using var http = new HttpClient();
+        await InstalarConRedAsync(http);
+        using Instalador sinRed = CrearInstalador(http, IndiceSinRed);
+        CargaDeTarjetas inicial = await sinRed.CargarTarjetasAsync();
+
+        CargaDeTarjetas recarga = await sinRed.CargarTarjetasAsync(refrescar: false);
+        TarjetaHerramienta tarjeta = Assert.IsType<TarjetaHerramienta>(recarga.TarjetaParaRepintar("subtitular"));
+
+        Assert.Equal(inicial.TarjetaParaRepintar("subtitular"), tarjeta);
+        Assert.True(recarga.SinConexion);
+        Assert.True(tarjeta.SinCatalogo);
+        Assert.True(tarjeta.PuedeAbrir);
+        Assert.True(tarjeta.PuedeQuitar);
+        Assert.False(tarjeta.PuedeActualizar);
+        Assert.Null(recarga.TarjetaParaRepintar("ausente"));
+    }
+
+    [Fact]
     public async Task Sin_red_y_sin_nada_instalado_sigue_saliendo_el_panel_de_sin_conexion()
     {
         using var http = new HttpClient();
@@ -216,7 +236,7 @@ public sealed class SinRedYQuitarTests : IAsyncLifetime, IDisposable
         TarjetaHerramienta t = Assert.Single(await instalador.ObtenerTarjetasAsync(refrescar: true));
         Assert.Equal(EstadoTarjeta.Actualizable, t.Estado);
         Assert.True(t.PuedeReanudar);
-        Assert.Contains($"También se borra lo descargado de la versión 1.1.0 que quedó en «{CarpetasPrueba.Descargas}».", t.TextoConfirmarQuitar(instalador.Carpetas), StringComparison.Ordinal);
+        Assert.Contains($"También se borra lo descargado de Subtitular que quedó en «{CarpetasPrueba.Descargas}» ({Instalador.Peso(_app1.Length + 40_000)}).", t.TextoConfirmarQuitar(instalador.Carpetas), StringComparison.Ordinal);
         Assert.Equal(new[] { zipVieja, parcialNueva }.Order(StringComparer.Ordinal), instalador.DescargasDeLaApp("subtitular", await instalador.IndiceAsync(CancellationToken.None)).Order(StringComparer.Ordinal));
 
         await instalador.QuitarAsync("subtitular");
@@ -232,6 +252,29 @@ public sealed class SinRedYQuitarTests : IAsyncLifetime, IDisposable
         Assert.Equal(EstadoTarjeta.NoInstalada, t.Estado);
         Assert.False(t.PuedeReanudar);
         Assert.False(t.ZipDescargado);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confirmacion_incluye_descargas_aunque_solo_quede_una_version_antigua(bool variasVersiones)
+    {
+        using var http = new HttpClient();
+        await InstalarConRedAsync(http);
+        if (variasVersiones)
+        {
+            Publicar(Indice(Entrada("subtitular", "1.0.0", "app", "app1.zip", _app1), Entrada("subtitular", "1.1.0", "app", "app2.zip", _app2)));
+        }
+
+        Directory.CreateDirectory(CarpetasPrueba.Descargas);
+        File.WriteAllBytes(Descarga(_app1), _app1);
+        using Instalador instalador = CrearInstalador(http);
+        TarjetaHerramienta tarjeta = Assert.Single(await instalador.ObtenerTarjetasAsync());
+
+        Assert.Equal(_app1.Length, tarjeta.DescargasDeLaAppBytes);
+        string texto = tarjeta.TextoConfirmarQuitar(CarpetasPrueba);
+        Assert.Contains($"También se borra lo descargado de Subtitular que quedó en «{CarpetasPrueba.Descargas}» ({Instalador.Peso(_app1.Length)}).", texto, StringComparison.Ordinal);
+        Assert.DoesNotContain("de la versión", texto, StringComparison.Ordinal);
     }
 
     [Fact]

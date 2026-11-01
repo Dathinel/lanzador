@@ -19,31 +19,21 @@ public static class Ordenes
 
         string? orden = null;
         string? app = null;
-        string indice = Instalador.IndiceDeDathinel.AbsoluteUri;
-        string? clave = null;
-        Carpetas carpetas = Carpetas.PorDefecto();
-        for (int i = 0; i < args.Length; i++)
+        OpcionesComunes opciones;
+        try
         {
-            string arg = args[i];
-            string? valor = i + 1 < args.Length ? args[i + 1] : null;
+            opciones = OpcionesComunes.Parsear(args);
+        }
+        catch (ErrorDeUso ex)
+        {
+            return Fallo(error, ex.Message, 1);
+        }
+
+        Carpetas carpetas = opciones.Carpetas;
+        foreach (string arg in opciones.Argumentos)
+        {
             switch (arg)
             {
-                case "--indice" when valor is not null:
-                    indice = valor;
-                    i++;
-                    break;
-                case "--destino" when valor is not null:
-                    carpetas = carpetas with { Herramientas = valor };
-                    i++;
-                    break;
-                case "--comun" when valor is not null:
-                    carpetas = carpetas with { Comun = valor };
-                    i++;
-                    break;
-                case "--clave" when valor is not null:
-                    clave = valor;
-                    i++;
-                    break;
                 case "--help" or "-h":
                     Uso(salida);
                     return 0;
@@ -81,7 +71,7 @@ public static class Ordenes
         var progreso = new Progreso(error);
         try
         {
-            using var instalador = new Instalador(carpetas, indice, clave, http);
+            using var instalador = new Instalador(carpetas, opciones.Indice, opciones.Clave, http);
             switch (orden)
             {
                 case "lista":

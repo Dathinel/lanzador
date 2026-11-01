@@ -21,6 +21,7 @@
 - Un catálogo con firma inválida (o sin conexión) ya no deja la lista vacía en silencio: en su sitio sale un panel con el motivo en español («La firma del catálogo no es válida: el catálogo no es el que publicó Dathinel o llegó dañado. Por seguridad no se ofrece nada para instalar») y «Volver a intentar». La verificación de firma y huella al instalar no cambia.
 
 ### Corregido
+- La tarjeta se recarga sin perder el estado sin conexión; «Quitar» informa de las descargas de todas las versiones y la ventana y la CLI comparten el parseo de opciones.
 - La CI de `main` fallaba en la prueba de `catalogo-entrada.ps1`: el script usaba `Get-FileHash`, `ConvertTo-Json`, `Write-Host` y `New-Object`, que Windows PowerShell 5.1 no encuentra cuando lo lanza pwsh 7 (hereda un `PSModulePath` con el que no carga `Microsoft.PowerShell.Utility`). Ahora calcula la huella y escribe el JSON con .NET, y la prueba comprueba la forma de la entrada (que `SignedIndex` la acepte, huella de 64 hexadecimales, peso mayor que cero) y la huella del zip de prueba, sin depender de ninguna release.
 
 ## [1.0.0] - 2026-10-24
