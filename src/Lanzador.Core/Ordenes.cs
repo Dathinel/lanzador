@@ -132,6 +132,12 @@ public static class Ordenes
             progreso.Cerrar();
             return Fallo(error, $"El «{Instalador.ManifiestoNombre}» de la herramienta no es JSON válido.", 2);
         }
+        catch (InvalidDataException ex)
+        {
+            // Los mensajes de la extracción ya salen en español.
+            progreso.Cerrar();
+            return Fallo(error, ex.Message, 2);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Sin ex.Message: el del framework sale en inglés.

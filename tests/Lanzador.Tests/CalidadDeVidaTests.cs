@@ -453,6 +453,32 @@ public sealed class CalidadDeVidaTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Manifiesto_corrupto_ofrece_completar_instalacion()
+    {
+        using var http = new HttpClient();
+        using var instalador = CrearInstalador(http);
+        await instalador.InstalarAsync("subtitular", (IProgress<ProgresoDetallado>?)null, CancellationToken.None);
+        Assert.False(Assert.Single(await instalador.ObtenerTarjetasAsync()).InstalacionIncompleta);
+
+        File.WriteAllText(Path.Combine(CarpetasPrueba.Herramientas, "subtitular", "1.0.0", "herramienta.json"), "{ no es json");
+
+        Assert.True(Assert.Single(await instalador.ObtenerTarjetasAsync()).InstalacionIncompleta);
+    }
+
+    [Fact]
+    public async Task Manifiesto_de_modulo_corrupto_ofrece_completar_instalacion()
+    {
+        using var http = new HttpClient();
+        using var instalador = CrearInstalador(http);
+        await instalador.InstalarAsync("subtitular", (IProgress<ProgresoDetallado>?)null, CancellationToken.None);
+        Assert.False(Assert.Single(await instalador.ObtenerTarjetasAsync()).InstalacionIncompleta);
+
+        File.WriteAllText(Path.Combine(CarpetasPrueba.Modulos, "modulo-eco", "2.0.0", "paquete.json"), "{ no es json");
+
+        Assert.True(Assert.Single(await instalador.ObtenerTarjetasAsync()).InstalacionIncompleta);
+    }
+
+    [Fact]
     public void Texto_tras_cancelar_solo_promete_reanudar_si_quedo_algo()
     {
         Assert.Equal("Descarga cancelada.", Tarjeta("1.0.0", "1.0.0", EstadoTarjeta.NoInstalada).TextoCancelada);

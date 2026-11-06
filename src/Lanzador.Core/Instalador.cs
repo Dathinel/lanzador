@@ -133,6 +133,11 @@ public sealed class Instalador : IDisposable
         using ECDsa clave = IndexSignature.TryImportPublicKey(_clave) ?? throw new PackageDownloadException("La clave pública del catálogo no es válida.");
         try
         {
+            if (new FileInfo(_indiceLocal).Length > SignedIndex.MaxBytes || new FileInfo(_indiceLocal + ".sig").Length > IndexSignature.MaxSignatureBytes)
+            {
+                throw new PackageDownloadException($"El índice «{_indiceLocal}» o su firma es demasiado grande; no se usó.");
+            }
+
             byte[] json = await File.ReadAllBytesAsync(_indiceLocal, ct).ConfigureAwait(false);
             byte[] firma = await File.ReadAllBytesAsync(_indiceLocal + ".sig", ct).ConfigureAwait(false);
             return SignedIndex.Load(json, firma, clave, _politica);
@@ -297,7 +302,8 @@ public sealed class Instalador : IDisposable
                 }
 
                 string carpeta = Path.Combine(_carpetas.Modulos, modulo, entrada.Version.ToString());
-                if (!Directory.Exists(carpeta) || ModuleModels.Read(Path.Combine(carpeta, "paquete.json")).Any(m => !m.IsPresentIn(carpeta)))
+                var problemas = new List<string>();
+                if (!Directory.Exists(carpeta) || ModuleModels.Read(Path.Combine(carpeta, "paquete.json"), problemas).Any(m => !m.IsPresentIn(carpeta)) || problemas.Count > 0)
                 {
                     return true;
                 }
@@ -305,9 +311,14 @@ public sealed class Instalador : IDisposable
 
             return false;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
+        }
+        catch (JsonException)
+        {
+            // Un herramienta.json ilegible no se puede juzgar: se ofrece «Completar instalación».
+            return true;
         }
     }
 
@@ -353,6 +364,13 @@ public sealed class Instalador : IDisposable
                 : $"El catálogo no tiene ninguna herramienta llamada «{id}». Mira «lanzador lista».");
 
         var coordinador = new CoordinadorProgreso(progreso, entrada.Size);
+        PackageVersion? instalada = Instalada(id);
+        if (instalada is not null && instalada > entrada.Version)
+        {
+            coordinador.NotificarFase($"Ya tienes la {instalada}, más nueva que la del catálogo: se conserva", id);
+            return instalada;
+        }
+
         string destino = Path.Combine(_carpetas.Herramientas, id, entrada.Version.ToString());
         if (!Directory.Exists(destino))
         {
@@ -575,6 +593,9 @@ public sealed class Instalador : IDisposable
         ? string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):F1} GB")
         : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0.1, bytes / (double)(1 << 20)):F1} MB");
 
+    private const int MaxEntradasZip = 8192;
+    private const long MaxBytesZip = 8L << 30; // 8 GB descomprimido en total
+
     /// <summary>Descomprime a una carpeta temporal al lado y la renombra al final: el destino nunca existe a medias.</summary>
     private static void Extraer(string zip, string destino, CancellationToken ct)
     {
@@ -587,6 +608,12 @@ public sealed class Instalador : IDisposable
         try
         {
             using ZipArchive archivo = ZipFile.OpenRead(zip);
+            if (archivo.Entries.Count > MaxEntradasZip)
+            {
+                throw new InvalidDataException($"El zip trae más de {MaxEntradasZip} entradas; no se usó.");
+            }
+
+            long total = 0;
             foreach (ZipArchiveEntry entrada in archivo.Entries)
             {
                 ct.ThrowIfCancellationRequested();
@@ -609,7 +636,25 @@ public sealed class Instalador : IDisposable
                 }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
-                entrada.ExtractToFile(ruta, overwrite: false);
+                using (Stream origen = entrada.Open())
+                using (var salida = new FileStream(ruta, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    byte[] buffer = new byte[81920];
+                    int leido;
+                    while ((leido = origen.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        salida.Write(buffer, 0, leido);
+                        total += leido;
+                        if (total > MaxBytesZip)
+                        {
+                            throw new InvalidDataException($"El zip se descomprime a más de {MaxBytesZip >> 30} GB; no se usó.");
+                        }
+
+                        ct.ThrowIfCancellationRequested();
+                    }
+
+                    salida.Flush(flushToDisk: true);
+                }
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(destino)!);

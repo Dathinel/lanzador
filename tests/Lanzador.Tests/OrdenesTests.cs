@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Lanzador.Core;
+using Rodaje.Packages.Download;
 using Rodaje.TestServer;
 
 namespace Lanzador.Tests;
@@ -222,6 +223,49 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         Assert.Equal(esperado, codigo);
         Assert.NotEmpty(error);
         Assert.DoesNotContain("Exception", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Zip_con_ruta_prohibida_sale_con_2_en_espanol()
+    {
+        byte[] malo = Zip(("../malicioso.txt", "x"));
+        _servidor.Map("malo.zip", TestResponse.File(malo));
+        Publicar(Indice(Entrada("subtitular", "1.0.0", "app", "malo.zip", malo)));
+
+        (int codigo, _, string error) = await Correr("instalar", "subtitular");
+
+        Assert.Equal(2, codigo);
+        Assert.Contains("ruta no permitida", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("   at ", error, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(Herramientas, "subtitular")));
+    }
+
+    [Fact]
+    public async Task Version_instalada_mas_nueva_que_el_catalogo_no_se_revierte()
+    {
+        string masNueva = Path.Combine(Herramientas, "subtitular", "9.0.0");
+        Directory.CreateDirectory(masNueva);
+
+        (int codigo, _, _) = await Correr("instalar", "subtitular");
+
+        Assert.Equal(0, codigo);
+        Assert.True(Directory.Exists(masNueva));
+        Assert.False(Directory.Exists(Path.Combine(Herramientas, "subtitular", "1.0.0")));
+        Assert.Equal(0, _servidor.RequestCount("app1.zip"));
+    }
+
+    [Fact]
+    public async Task Indice_local_enorme_sale_con_2_en_espanol()
+    {
+        string indice = Path.Combine(_temp, "indice.json");
+        File.WriteAllBytes(indice, new byte[SignedIndex.MaxBytes + 1]);
+        File.WriteAllText(indice + ".sig", "firma");
+        var error = new StringWriter();
+
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--clave", _firmante.PublicKeyBase64, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+
+        Assert.Equal(2, codigo);
+        Assert.Contains("demasiado grande", error.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

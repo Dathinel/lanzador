@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
     private readonly HttpClient _http;
     private readonly Instalador _instalador;
     private readonly ComprobadorLanzador _comprobador;
+    // Operaciones de instalación en marcha por herramienta: una tarjeta repintada en un refresco recupera su «Cancelar» y no puede lanzar una segunda sobre el mismo destino.
+    private readonly Dictionary<string, CancellationTokenSource> _operaciones = new(StringComparer.Ordinal);
     private Ajustes _ajustes;
     private ComprobacionLanzador? _ultimaComprobacion;
     private EstadoVentana? _ventanaRestaurada;
@@ -429,7 +431,7 @@ public sealed partial class MainWindow : Window
         filaBotones.Children.Add(btnCancelar);
         panel.Children.Add(filaBotones);
 
-        CancellationTokenSource? ctsOperacion = null;
+        CancellationTokenSource? ctsOperacion = _operaciones.TryGetValue(tarjeta.Id, out CancellationTokenSource? enCurso) ? enCurso : null;
         var reloj = new Stopwatch();
         double fraccion = 0;
         TimeSpan? restanteMedido = null;
@@ -463,7 +465,22 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        btnCancelar.Click += (_, _) => ctsOperacion?.Cancel();
+        // Si la operación sigue en marcha pero la tarjeta se repintó en un refresco, se muestra ocupada y «Cancelar» apunta a su origen.
+        if (enCurso is not null)
+        {
+            EstablecerOcupado(true);
+        }
+
+        btnCancelar.Click += (_, _) =>
+        {
+            try
+            {
+                ctsOperacion?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        };
 
         btnAbrir.Click += (_, _) =>
         {
@@ -484,7 +501,15 @@ public sealed partial class MainWindow : Window
         async void Ejecutar()
         {
             avisoTarjeta.IsOpen = false;
-            ctsOperacion = new CancellationTokenSource();
+            var cts = new CancellationTokenSource();
+            if (!_operaciones.TryAdd(tarjeta.Id, cts))
+            {
+                // Ya hay una operación sobre esta herramienta (la tarjeta se repintó en un refresco).
+                cts.Dispose();
+                return;
+            }
+
+            ctsOperacion = cts;
             EstablecerOcupado(true);
 
             var progreso = new Progress<ProgresoDetallado>(p =>
@@ -527,7 +552,8 @@ public sealed partial class MainWindow : Window
             }
             finally
             {
-                ctsOperacion.Dispose();
+                _operaciones.Remove(tarjeta.Id);
+                ctsOperacion?.Dispose();
                 ctsOperacion = null;
             }
         }

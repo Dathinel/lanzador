@@ -96,7 +96,7 @@ Uso rápido (CLI):
 
 Opciones de la CLI:
   --indice <url>     Dirección del catálogo firmado (por defecto el oficial)
-  --clave <archivo>  Clave pública para verificar el catálogo
+  --clave <base64>   Clave pública en base64 para verificar el catálogo
   --destino <dir>    Carpeta base de herramientas
   --comun <dir>      Carpeta base de recursos comunes
 
