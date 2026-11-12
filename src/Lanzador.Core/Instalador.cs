@@ -434,7 +434,17 @@ public sealed class Instalador : IDisposable
         foreach (string app in ids)
         {
             PackageVersion antes = Instalada(app) ?? throw new ErrorDeUso($"«{app}» no está instalada; usa «lanzador instalar {app}».");
-            PackageVersion ahora = await InstalarAsync(app, progreso, ct).ConfigureAwait(false);
+            PackageVersion ahora;
+            try
+            {
+                ahora = await InstalarAsync(app, progreso, ct).ConfigureAwait(false);
+            }
+            catch (ErrorDeUso) when (id is null)
+            {
+                // «Todas»: una que el catálogo ya no ofrece (retirada, o pide un Lanzador más nuevo) no impide actualizar las demás.
+                continue;
+            }
+
             if (!ahora.Equals(antes))
             {
                 cambios.Add((app, antes, ahora));

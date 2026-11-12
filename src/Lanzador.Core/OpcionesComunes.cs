@@ -20,7 +20,8 @@ public sealed record OpcionesComunes(string Indice, string? Clave, Carpetas Carp
                 continue;
             }
 
-            if (i + 1 >= args.Length || args[i + 1].StartsWith('-'))
+            // Vacía sería la carpeta actual: «quitar x --destino ""» borraría la «x» de donde se lanzó.
+            if (i + 1 >= args.Length || args[i + 1].StartsWith('-') || (arg is "--destino" or "--comun" && string.IsNullOrWhiteSpace(args[i + 1])))
             {
                 throw new ErrorDeUso($"Falta el valor de {arg}.");
             }

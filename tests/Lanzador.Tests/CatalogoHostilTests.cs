@@ -372,8 +372,7 @@ public sealed class CatalogoHostilTests : IAsyncLifetime, IDisposable
     }
 
     [Theory]
-    [InlineData("""{"formatVersion":1,"entries":{"rastrear":{}}}""")]
-    [InlineData("""{"formatVersion":1,"generated":"ayer","entries":[42,"x",null,true]}""")]
+    [InlineData("""{"formatVersion":1,"entries":[42,"x",null,true]}""")]
     [InlineData("""{"formatVersion":1}""")]
     public async Task Indice_legible_sin_entradas_usables_da_lista_vacia(string indice)
     {

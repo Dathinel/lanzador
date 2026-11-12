@@ -409,4 +409,33 @@ public sealed class EstadosDiscoTests : IAsyncLifetime, IDisposable
         Assert.True(File.Exists(ajeno), "Lo que hay al otro lado del enlace no es de la herramienta.");
         Assert.True(File.GetAttributes(ajeno).HasFlag(FileAttributes.ReadOnly), "Ni se le quita el solo lectura.");
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Quitar_una_herramienta_que_es_un_enlace_borra_el_enlace_y_no_su_destino(bool soloLaVersion)
+    {
+        string fuera = Path.Combine(_temp, "fuera");
+        string ajeno = Path.Combine(fuera, "1.0.0", "ajeno.txt");
+        Directory.CreateDirectory(Path.Combine(fuera, "1.0.0"));
+        File.WriteAllText(ajeno, "no es de la herramienta");
+        Directory.CreateDirectory(soloLaVersion ? Path.Combine(Herramientas, "subtitular") : Herramientas);
+        if (soloLaVersion)
+        {
+            CrearEnlace(Path.Combine(Herramientas, "subtitular", "1.0.0"), Path.Combine(fuera, "1.0.0"));
+        }
+        else
+        {
+            CrearEnlace(Path.Combine(Herramientas, "subtitular"), fuera);
+        }
+
+        using var http = new HttpClient();
+        using var instalador = CrearInstalador(http);
+        Assert.Equal(PackageVersion.Parse("1.0.0"), instalador.Instalada("subtitular"));
+
+        instalador.Quitar("subtitular");
+
+        Assert.False(Directory.Exists(Path.Combine(Herramientas, "subtitular")));
+        Assert.True(File.Exists(ajeno), "Lo que hay al otro lado del enlace no es de la herramienta.");
+    }
 }

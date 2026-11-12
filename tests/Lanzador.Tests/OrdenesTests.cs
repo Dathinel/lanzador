@@ -459,4 +459,30 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         Assert.Equal(2, codigo);
         Assert.Equal($"Error: El índice «{indice}» no es una URL http(s) ni un archivo que exista.", error.ToString().TrimEnd());
     }
+
+    // 11. «actualizar» sin app recorre todo lo instalado, también lo que el catálogo ya no ofrece.
+
+    [Fact]
+    public async Task Actualizar_todas_no_se_para_en_una_que_el_catalogo_ya_no_ofrece()
+    {
+        Assert.Equal(0, (await Correr("instalar", "subtitular")).Codigo);
+        // Las dos van antes que «subtitular»: una retirada del catálogo y otra que pide un Lanzador más nuevo.
+        Directory.CreateDirectory(Path.Combine(Herramientas, "retirada", "1.0.0"));
+        Directory.CreateDirectory(Path.Combine(Herramientas, "rastrear", "1.0.0"));
+        string exigente = Entrada("rastrear", "2.0.0", "app", "app2.zip", _app2).Replace(" }", ", \"minApp\": \"99.0.0\" }", StringComparison.Ordinal);
+        Publicar(Indice(exigente, Entrada("subtitular", "1.0.0", "app", "app1.zip", _app1), Entrada("subtitular", "1.1.0", "app", "app2.zip", _app2)));
+
+        (int codigo, string salida, string error) = await Correr("actualizar");
+
+        Assert.Equal(0, codigo);
+        Assert.Equal("subtitular: 1.0.0 → 1.1.0", salida.Trim());
+        Assert.DoesNotContain("Error:", error, StringComparison.Ordinal);
+        Assert.True(Directory.Exists(Path.Combine(Herramientas, "retirada", "1.0.0")));
+        Assert.True(Directory.Exists(Path.Combine(Herramientas, "rastrear", "1.0.0")));
+
+        // Pedida por su nombre sí se dice por qué no se puede.
+        (codigo, _, error) = await Correr("actualizar", "rastrear");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: «rastrear» necesita el Lanzador 99.0.0 o posterior.", error.Trim());
+    }
 }

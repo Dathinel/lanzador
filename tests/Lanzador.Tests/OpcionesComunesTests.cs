@@ -100,4 +100,15 @@ public sealed class OpcionesComunesTests
         Assert.Equal("d", opciones.Carpetas.Herramientas);
         Assert.Equal("c", opciones.Carpetas.Comun);
     }
+
+    [Theory]
+    [InlineData("--destino", "")]
+    [InlineData("--destino", "   ")]
+    [InlineData("--comun", "")]
+    [InlineData("--comun", "   ")]
+    public void Carpeta_vacia_no_vale_como_valor(string opcion, string valor)
+    {
+        var ex = Assert.Throws<ErrorDeUso>(() => OpcionesComunes.Parsear(["quitar", "subtitular", opcion, valor]));
+        Assert.Equal($"Falta el valor de {opcion}.", ex.Message);
+    }
 }
