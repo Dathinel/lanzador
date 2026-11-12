@@ -3,6 +3,7 @@
 ## Sin publicar
 
 ### Añadido
+- Más pruebas del Lanzador (de 122 a 369): entradas hostiles del catálogo, estados del disco (carpetas a medias, `.parcial` y zips raros, rutas largas y con tildes, solo lectura, enlaces), tabla completa de estados de la tarjeta, casos del parseo de opciones y códigos de la CLI, bordes del aviso de versión nueva (24 h, JSON raro, cientos de releases), cancelación y concurrencia, y `ajustes.json`/`ventana.json` con contenido roto.
 - Sin conexión, si hay herramientas instaladas la ventana las enseña igual, leídas del disco (versión, ejecutable y espacio), con «Abrir» y «Quitar» y sin «Instalar» ni «Actualizar», bajo una franja «Sin conexión» que dice que para instalar o buscar versiones nuevas hace falta red. Sin nada instalado sigue el panel «Sin conexión con el catálogo». Una firma inválida nunca se disimula con lo instalado.
 - «Quitar» borra también lo que quedó en `Comun\descargas` de esa herramienta: los zips enteros y los `.parcial` de cualquiera de sus versiones publicadas; la confirmación lo dice cuando hay algo. Sin red se borra solo la carpeta (no se sabe de quién es cada descarga). Los módulos y modelos compartidos se quedan como siempre.
 - Una herramienta instalada con versión mayor que la del catálogo (una compilación propia, un catálogo atrasado) tiene su propio estado, «Instalada 9.0.0, más nueva que el catálogo (1.0.0)», sin botones de instalar, actualizar ni reanudar; `lanzador lista` lo dice igual.

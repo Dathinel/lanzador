@@ -342,6 +342,205 @@ public sealed class ComprobadorLanzadorTests : IDisposable
         Assert.Null(c.Ajustes.UltimaConsultaLanzador);
     }
 
+    // 1b. Más formas de tag y de html_url que el aviso acepta o rechaza.
+
+    [Theory]
+    [InlineData("v1.2.0", "1.2.0")]
+    [InlineData("V1.2.0", "1.2.0")]
+    [InlineData(" v1.2.0 ", "1.2.0")]
+    [InlineData("v1.2.0-beta.1", "1.2.0-beta.1")]
+    [InlineData("v1.2.0+build5", "1.2.0+build5")]
+    public void Tag_con_v_mayuscula_espacios_prerelease_o_build_tambien_es_version(string tag, string esperada)
+    {
+        ReleaseLanzador? r = ComprobadorLanzador.Interpretar(Release(tag));
+        Assert.Equal(PackageVersion.Parse(esperada), r?.Version);
+    }
+
+    [Theory]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": "HTTPS://github.com/x" }""")]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": " https://github.com/x " }""")]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": "https://github.com/x", "prerelease": true }""")]
+    public void Html_url_con_mayusculas_o_espacios_y_prerelease_se_aceptan(string json)
+    {
+        ReleaseLanzador? r = ComprobadorLanzador.Interpretar(json);
+        Assert.Equal(PackageVersion.Parse("1.2.0"), r?.Version);
+    }
+
+    [Theory]
+    [InlineData("""{ "tag_name": "version1.2.0", "html_url": "https://github.com/x" }""")]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": "" }""")]
+    [InlineData("""{ "tag_name": null, "html_url": "https://github.com/x" }""")]
+    [InlineData("""{ "tag_name": 7, "html_url": "https://github.com/x" }""")]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": "https://github.com/x", "draft": "false" }""")]
+    [InlineData("""{ "tag_name": "v1.2.0", "html_url": "https://github.com/x", "draft": 1 }""")]
+    public void Tag_raro_url_rara_o_borrador_con_tipo_cambiado_no_es_una_release(string json)
+    {
+        Assert.Null(ComprobadorLanzador.Interpretar(json));
+    }
+
+    // 2b. Una respuesta vacía no es lo mismo que «no hay releases»: cuenta como consulta rara.
+
+    [Fact]
+    public async Task Respuesta_vacia_es_consulta_rara_y_se_anota()
+    {
+        ComprobacionLanzador c = await Comprobador(new FuenteFalsa("")).ComprobarAsync(new Ajustes(), aMano: false);
+        Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
+        Assert.Equal(Inicio, c.Ajustes.UltimaConsultaLanzador);
+    }
+
+    [Fact]
+    public async Task Sin_releases_publicadas_es_al_dia_y_se_anota()
+    {
+        ComprobacionLanzador c = await Comprobador(new FuenteFalsa((string)null!)).ComprobarAsync(new Ajustes(), aMano: false);
+        Assert.Equal(ResultadoLanzador.AlDia, c.Resultado);
+        Assert.Equal(Inicio, c.Ajustes.UltimaConsultaLanzador);
+    }
+
+    // 3b. «Más tarde» sin release no cambia nada; el borde de las 24 h es exacto.
+
+    [Fact]
+    public void Descartar_sin_release_no_cambia_los_ajustes()
+    {
+        var ajustes = new Ajustes(UltimaConsultaLanzador: Inicio);
+        var c = new ComprobacionLanzador(ResultadoLanzador.AlDia, null, ajustes);
+        Assert.Same(ajustes, c.Descartar());
+    }
+
+    [Fact]
+    public void Toca_en_el_borde_exacto_de_las_24_horas()
+    {
+        var ajustes = new Ajustes(UltimaConsultaLanzador: Inicio);
+        Assert.False(ComprobadorLanzador.Toca(ajustes, Inicio.Add(ComprobadorLanzador.Intervalo).AddTicks(-1)));
+        Assert.True(ComprobadorLanzador.Toca(ajustes, Inicio.Add(ComprobadorLanzador.Intervalo)));
+    }
+
+    // 6b. La lista de respaldo de releases también puede venir rota o enorme.
+
+    [Theory]
+    [InlineData("""{ "total_count": 3 }""")]
+    [InlineData("""["v1", { "tag_name": "v1.1.0", "draft": false, "html_url": "https://github.com/x" }]""")]
+    [InlineData("""[{ "tag_name": "v1.1.0", "html_url": "https://github.com/x" }]""")]
+    [InlineData("""[{ "tag_name": "v1.1.0", "draft": "no", "html_url": "https://github.com/x" }]""")]
+    public async Task Lista_de_releases_con_forma_rota_es_silencio(string json)
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        servidor.Map("releases", TestResponse.File(System.Text.Encoding.UTF8.GetBytes(json)));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
+        Assert.Equal(new[] { "/releases/latest", "/releases" }, servidor.Requests.Select(p => p.Path));
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Fact]
+    public async Task Latest_con_500_no_pide_la_lista_de_respaldo()
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(500, "roto"));
+        servidor.Map("releases", TestResponse.File(System.Text.Encoding.UTF8.GetBytes("[]")));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
+        Assert.Equal(0, servidor.RequestCount("releases"));
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Fact]
+    public async Task Lista_de_respaldo_con_404_es_silencio()
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        servidor.Map("releases", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Fact]
+    public async Task Respuesta_mayor_de_un_mega_es_silencio()
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.File(new byte[(1 << 20) + 1]));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.SinRespuesta, c.Resultado);
+        Assert.Empty(servidor.Faults);
+    }
+
+    [Fact]
+    public async Task Con_cientos_de_releases_gana_la_primera_publicada()
+    {
+        await using TestHttpServer servidor = TestHttpServer.Start();
+        servidor.Map("releases/latest", TestResponse.Status(404, """{ "message": "Not Found" }"""));
+        var borradores = Enumerable.Range(1, 200)
+            .Select(i => $$"""{ "tag_name": "v{{i}}.0.0", "draft": true, "html_url": "https://github.com/x" }""");
+        string json = "[" + string.Join(",", [.. borradores, Release("v2.0.0")]) + "]";
+        servidor.Map("releases", TestResponse.File(System.Text.Encoding.UTF8.GetBytes(json)));
+        using var http = new HttpClient();
+        var fuente = new FuenteReleasesGitHub(http, Actual, servidor.UrlFor("releases/latest"));
+
+        ComprobacionLanzador c = await new ComprobadorLanzador(fuente, Actual, _reloj).ComprobarAsync(new Ajustes(), aMano: true);
+
+        Assert.Equal(ResultadoLanzador.VersionNueva, c.Resultado);
+        Assert.Equal(PackageVersion.Parse("2.0.0"), c.Release!.Version);
+        Assert.Empty(servidor.Faults);
+    }
+
+    // 5b. Ajustes que no se pueden leer vuelven a los de fábrica; los campos de más no estorban.
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("""{ "avisarVersionNueva": 123 }""")]
+    [InlineData("""{ "versionDescartada": 42 }""")]
+    [InlineData("""{ "ultimaConsultaLanzador": "ayer" }""")]
+    public void Ajustes_con_forma_rota_son_los_de_fabrica(string json)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        File.WriteAllText(Ruta, json);
+        Assert.Equal(new Ajustes(), Ajustes.Cargar(Ruta));
+    }
+
+    [Fact]
+    public void Ajustes_con_campos_de_mas_se_leen_igual()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        File.WriteAllText(Ruta, """{ "avisarVersionNueva": false, "ultimaConsultaLanzador": "2026-11-01T12:00:00+00:00", "versionDescartada": "1.2.0", "campoQueNoExiste": 42 }""");
+
+        Ajustes ajustes = Ajustes.Cargar(Ruta);
+        Assert.False(ajustes.AvisarVersionNueva);
+        Assert.Equal(Inicio, ajustes.UltimaConsultaLanzador);
+        Assert.Equal("1.2.0", ajustes.VersionDescartada);
+    }
+
+    [Fact]
+    public void Ajustes_que_otro_proceso_tiene_abiertos_en_exclusiva_son_los_de_fabrica()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        File.WriteAllText(Ruta, """{ "avisarVersionNueva": false }""");
+        using FileStream abierto = File.Open(Ruta, FileMode.Open, FileAccess.Read, FileShare.None);
+        Assert.Equal(new Ajustes(), Ajustes.Cargar(Ruta));
+    }
+
+    private string Ruta => Path.Combine(_temp, "sub", "ajustes.json");
+
     /// <summary>Un reloj que solo avanza cuando la prueba lo dice.</summary>
     private sealed class RelojFalso(DateTimeOffset ahora) : TimeProvider
     {

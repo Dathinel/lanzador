@@ -31,6 +31,51 @@ public sealed class VentanaYTiemposTests : IDisposable
     }
 
     [Theory]
+    [InlineData(640, 480, true)]      // justo el mínimo
+    [InlineData(16384, 16384, true)]  // justo el máximo
+    [InlineData(639, 480, false)]
+    [InlineData(640, 479, false)]
+    [InlineData(16385, 480, false)]
+    [InlineData(640, 16385, false)]
+    [InlineData(0, 0, false)]
+    [InlineData(-100, -100, false)]
+    public void Ventana_fuera_de_rango_no_se_usa(int ancho, int alto, bool sirve)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        new EstadoVentana(-32000, -32000, ancho, alto, Maximizada: true).Guardar(Ruta);
+
+        EstadoVentana? cargada = EstadoVentana.Cargar(Ruta);
+        Assert.Equal(sirve, cargada is not null);
+        if (cargada is not null)
+        {
+            Assert.Equal(-32000, cargada.X);
+            Assert.True(cargada.Maximizada);
+        }
+    }
+
+    [Theory]
+    [InlineData("""{ "ancho": "800", "alto": 600 }""")]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("""{ "maximizada": true }""")]
+    [InlineData("""{ "ancho": 800.5, "alto": 600 }""")]
+    public void Ventana_con_json_raro_da_null(string json)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        File.WriteAllText(Ruta, json);
+        Assert.Null(EstadoVentana.Cargar(Ruta));
+    }
+
+    [Fact]
+    public void Ventana_con_campos_de_mas_se_lee_igual()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Ruta)!);
+        File.WriteAllText(Ruta, """{ "x": 5, "y": 6, "ancho": 800, "alto": 600, "maximizada": false, "monitor": "izquierdo" }""");
+
+        Assert.Equal(new EstadoVentana(5, 6, 800, 600, Maximizada: false), EstadoVentana.Cargar(Ruta));
+    }
+
+    [Theory]
     [InlineData(0, "0:00")]
     [InlineData(42, "0:42")]
     [InlineData(65, "1:05")]
