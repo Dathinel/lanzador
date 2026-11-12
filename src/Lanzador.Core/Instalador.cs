@@ -51,18 +51,21 @@ public sealed class Instalador : IDisposable
     private readonly string? _indiceLocal;
     private readonly string? _clave;
     private readonly DownloadUrlPolicy _politica;
+    // Las instalaciones comparten Comun\descargas, los módulos y los modelos: de una en una, o dos chocan en el mismo «.parcial».
+    private readonly SemaphoreSlim _turno = new(1, 1);
 
     /// <param name="indice">URL del <c>indice.json</c> (la firma es la misma dirección con <c>.sig</c>) o la ruta de un archivo local.</param>
     /// <param name="clavePublica">Clave P-256 en base64; por defecto la del catálogo de Dathinel que viaja en el exe.</param>
     public Instalador(Carpetas carpetas, string indice, string? clavePublica, HttpClient http)
     {
         _carpetas = carpetas ?? throw new ArgumentNullException(nameof(carpetas));
-        ArgumentException.ThrowIfNullOrWhiteSpace(indice);
+        ArgumentNullException.ThrowIfNull(indice);
         ArgumentNullException.ThrowIfNull(http);
-        // Mensaje propio: el del framework sale en inglés.
-        if (!Uri.TryCreate(File.Exists(indice) ? Path.GetFullPath(indice) : indice, UriKind.Absolute, out Uri? url) || (url.IsFile && !File.Exists(url.LocalPath)))
+        // Mensaje propio (también para un índice vacío o con otro esquema, como ftp): el del framework sale en inglés.
+        if (!Uri.TryCreate(File.Exists(indice) ? Path.GetFullPath(indice) : indice, UriKind.Absolute, out Uri? url)
+            || (url.IsFile ? !File.Exists(url.LocalPath) : url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps))
         {
-            throw new PackageDownloadException($"El índice «{indice}» no es una URL ni un archivo que exista.");
+            throw new PackageDownloadException($"El índice «{indice}» no es una URL http(s) ni un archivo que exista.");
         }
 
         _indiceLocal = url.IsFile ? url.LocalPath : null;
@@ -206,7 +209,7 @@ public sealed class Instalador : IDisposable
                 pendiente ? DescargaParcial(app) : 0,
                 pendiente && ZipDescargado(app),
                 incompleta,
-                DescargasDeLaAppBytes: DescargasDeLaApp(app.Id, indice).Sum(ruta => new FileInfo(ruta).Length)
+                DescargasDeLaAppBytes: DescargasDeLaApp(app.Id, indice).Sum(Tamano)
             ));
         }
 
@@ -264,27 +267,29 @@ public sealed class Instalador : IDisposable
         return tarjetas;
     }
 
-    /// <summary>Bytes del «.parcial» que dejó en <c>Comun\descargas</c> una descarga cortada del zip de esa entrada.</summary>
+    /// <summary>
+    /// Bytes del «.parcial» que dejó en <c>Comun\descargas</c> una descarga cortada del zip de esa entrada; 0 si pesa más
+    /// que el zip (no puede ser parte de él: la descarga lo borra y empieza de cero).
+    /// </summary>
     public long DescargaParcial(IndexEntry entrada)
     {
         ArgumentNullException.ThrowIfNull(entrada);
-        string parcial = Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip" + FileDownloader.PartialSuffix);
-        try
-        {
-            return File.Exists(parcial) ? new FileInfo(parcial).Length : 0;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return 0;
-        }
+        long bytes = Tamano(Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip" + FileDownloader.PartialSuffix));
+        return bytes <= entrada.Size ? bytes : 0;
     }
 
-    /// <summary>El zip entero de esa entrada sigue en <c>Comun\descargas</c> (se bajó pero no llegó a extraerse).</summary>
+    /// <summary>
+    /// El zip entero de esa entrada sigue en <c>Comun\descargas</c> (se bajó pero no llegó a extraerse). Se mira que pese lo
+    /// publicado; la huella se comprueba al usarlo.
+    /// </summary>
     public bool ZipDescargado(IndexEntry entrada)
     {
         ArgumentNullException.ThrowIfNull(entrada);
-        return File.Exists(Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip"));
+        return Tamano(Path.Combine(_carpetas.Descargas, entrada.Sha256 + ".zip")) == entrada.Size;
     }
+
+    /// <summary>Tamaño del archivo, o 0 si no está. Una sola consulta al disco: no falla si desaparece entre mirar y medir.</summary>
+    private static long Tamano(string ruta) => new FileInfo(ruta) is { Exists: true } archivo ? archivo.Length : 0;
 
     /// <summary>Faltan en <c>Comun\</c> módulos del manifiesto de la app instalada, o modelos de esos módulos.</summary>
     public bool InstalacionIncompleta(SignedIndex indice, string id, PackageVersion instalada)
@@ -354,8 +359,29 @@ public sealed class Instalador : IDisposable
     public Task<PackageVersion> InstalarAsync(string id, IProgress<string>? progreso, CancellationToken ct) =>
         InstalarAsync(id, progreso is null ? null : new AdaptadorProgresoCadena(progreso), ct);
 
-    /// <summary>Instala la versión más nueva de <paramref name="id"/> (y sus módulos y modelos) con progreso detallado.</summary>
+    /// <summary>
+    /// Instala la versión más nueva de <paramref name="id"/> (y sus módulos y modelos) con progreso detallado. Si hay otra
+    /// instalación en marcha en este <see cref="Instalador"/>, espera a que termine.
+    /// </summary>
     public async Task<PackageVersion> InstalarAsync(string id, IProgress<ProgresoDetallado>? progreso, CancellationToken ct)
+    {
+        if (_turno.CurrentCount == 0)
+        {
+            progreso?.Report(new ProgresoDetallado("Esperando a que termine otra instalación", id, 0, 0, 0, 0, 0, 0));
+        }
+
+        await _turno.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await InstalarEnSuTurnoAsync(id, progreso, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _turno.Release();
+        }
+    }
+
+    private async Task<PackageVersion> InstalarEnSuTurnoAsync(string id, IProgress<ProgresoDetallado>? progreso, CancellationToken ct)
     {
         SignedIndex indice = await IndiceAsync(ct).ConfigureAwait(false);
         IndexEntry entrada = indice.Latest(id, Version, IndexEntryKind.App)
@@ -389,7 +415,7 @@ public sealed class Instalador : IDisposable
 
         foreach (PackageVersion vieja in VersionesInstaladas(id).Where(v => !v.Equals(entrada.Version)))
         {
-            Directory.Delete(Path.Combine(_carpetas.Herramientas, id, vieja.ToString()), recursive: true);
+            BorrarCarpeta(Path.Combine(_carpetas.Herramientas, id, vieja.ToString()));
         }
 
         coordinador.NotificarFase("Listo", id);
@@ -408,7 +434,17 @@ public sealed class Instalador : IDisposable
         foreach (string app in ids)
         {
             PackageVersion antes = Instalada(app) ?? throw new ErrorDeUso($"«{app}» no está instalada; usa «lanzador instalar {app}».");
-            PackageVersion ahora = await InstalarAsync(app, progreso, ct).ConfigureAwait(false);
+            PackageVersion ahora;
+            try
+            {
+                ahora = await InstalarAsync(app, progreso, ct).ConfigureAwait(false);
+            }
+            catch (ErrorDeUso) when (id is null)
+            {
+                // «Todas»: una que el catálogo ya no ofrece (retirada, o pide un Lanzador más nuevo) no impide actualizar las demás.
+                continue;
+            }
+
             if (!ahora.Equals(antes))
             {
                 cambios.Add((app, antes, ahora));
@@ -450,11 +486,39 @@ public sealed class Instalador : IDisposable
             throw new ErrorDeUso($"«{id}» no está instalada.");
         }
 
-        Directory.Delete(carpeta, recursive: true);
+        BorrarCarpeta(carpeta);
         foreach (string descarga in DescargasDeLaApp(id, indice))
         {
             File.Delete(descarga);
         }
+    }
+
+    /// <summary>
+    /// Borra la carpeta entera. <c>Directory.Delete</c> recursivo no puede con lo marcado de solo lectura ni con una unión
+    /// (junction) dentro; aquí lo de solo lectura se desmarca y en los enlaces y uniones no se entra ni se tocan sus
+    /// atributos: se borra el enlace, nunca su destino.
+    /// </summary>
+    private static void BorrarCarpeta(string carpeta) => Borrar(new DirectoryInfo(carpeta));
+
+    private static void Borrar(FileSystemInfo entrada)
+    {
+        if (!entrada.Attributes.HasFlag(FileAttributes.ReparsePoint))
+        {
+            if (entrada.Attributes.HasFlag(FileAttributes.ReadOnly))
+            {
+                entrada.Attributes &= ~FileAttributes.ReadOnly;
+            }
+
+            if (entrada is DirectoryInfo carpeta)
+            {
+                foreach (FileSystemInfo hija in carpeta.EnumerateFileSystemInfos())
+                {
+                    Borrar(hija);
+                }
+            }
+        }
+
+        entrada.Delete();
     }
 
     /// <summary>Los archivos que hay en <c>Comun\descargas</c> de las entradas <c>app</c> de <paramref name="id"/>: <c>&lt;huella&gt;.zip</c> y su <c>.parcial</c>.</summary>
@@ -532,7 +596,11 @@ public sealed class Instalador : IDisposable
         Process.Start(new ProcessStartInfo(raiz) { UseShellExecute = true });
     }
 
-    public void Dispose() => _indice.Dispose();
+    public void Dispose()
+    {
+        _indice.Dispose();
+        _turno.Dispose();
+    }
 
     private IEnumerable<PackageVersion> VersionesInstaladas(string id)
     {
@@ -589,7 +657,8 @@ public sealed class Instalador : IDisposable
         }
     }
 
-    public static string Peso(long bytes) => bytes >= 1L << 30
+    // El corte está en 1023.95 MB: desde ahí el redondeo a un decimal ya diría «1024.0 MB».
+    public static string Peso(long bytes) => bytes >= (1L << 30) - (1L << 20) / 20
         ? string.Create(CultureInfo.InvariantCulture, $"{bytes / (double)(1L << 30):F1} GB")
         : string.Create(CultureInfo.InvariantCulture, $"{Math.Max(0.1, bytes / (double)(1 << 20)):F1} MB");
 

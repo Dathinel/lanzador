@@ -217,6 +217,8 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
     [InlineData(1, "bailar")]
     [InlineData(1, "lista", "--raro")]
     [InlineData(1, "actualizar", "desconocida")]
+    [InlineData(1, "")]
+    [InlineData(1, "instalar", "")]
     public async Task Errores_de_uso_salen_con_1(int esperado, params string[] args)
     {
         (int codigo, _, string error) = await Correr(args);
@@ -285,7 +287,7 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         var error = new StringWriter();
         int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
         Assert.Equal(2, codigo);
-        Assert.Equal($"Error: El índice «{indice}» no es una URL ni un archivo que exista.", error.ToString().Trim());
+        Assert.Equal($"Error: El índice «{indice}» no es una URL http(s) ni un archivo que exista.", error.ToString().Trim());
     }
 
     [Fact]
@@ -297,5 +299,190 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--clave", _firmante.PublicKeyBase64, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
         Assert.Equal(2, codigo);
         Assert.Equal($"Error: No se pudo leer el índice «{indice}» o su firma «.sig».", error.ToString().Trim());
+    }
+
+    // 9. Argumentos de la orden: cuentan hasta dos, cada uno tiene su error, y las mayúsculas no valen.
+
+    [Fact]
+    public async Task Lista_con_argumento_sale_con_1()
+    {
+        (int codigo, _, string error) = await Correr("lista", "extra");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: «lista» no lleva argumentos.", error.Trim());
+    }
+
+    [Fact]
+    public async Task Tercer_argumento_sobra()
+    {
+        (int codigo, _, string error) = await Correr("instalar", "a", "b");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: Sobra el argumento «b».", error.Trim());
+    }
+
+    [Fact]
+    public async Task La_orden_dos_veces_se_trata_como_nombre_de_app()
+    {
+        (int codigo, _, string error) = await Correr("instalar", "instalar");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: El catálogo no tiene ninguna herramienta llamada «instalar». Mira «lanzador lista».", error.Trim());
+    }
+
+    [Fact]
+    public async Task Orden_en_mayusculas_no_se_reconoce()
+    {
+        (int codigo, _, string error) = await Correr("LISTA");
+        Assert.Equal(1, codigo);
+        Assert.StartsWith("Uso: lanzador", error, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("--INDICE")]
+    [InlineData("--")]
+    [InlineData("--indice=x")]
+    public async Task Argumento_con_guion_desconocido_sale_con_1(string raro)
+    {
+        (int codigo, _, string error) = await Correr("lista", raro);
+        Assert.Equal(1, codigo);
+        Assert.Equal($"Error: Opción desconocida: {raro}", error.Trim());
+    }
+
+    [Fact]
+    public async Task Opcion_desconocida_despues_de_la_orden_sale_con_1()
+    {
+        (int codigo, _, string error) = await Correr("instalar", "-x");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: Opción desconocida: -x", error.Trim());
+    }
+
+    [Theory]
+    [InlineData("-h")]
+    [InlineData("--help")]
+    public async Task Ayuda_sale_con_0_y_el_uso_va_a_la_salida(string ayuda)
+    {
+        (int codigo, string salida, string error) = await Correr(ayuda);
+        Assert.Equal(0, codigo);
+        Assert.StartsWith("Uso: lanzador", salida, StringComparison.Ordinal);
+        Assert.Empty(error.Trim());
+    }
+
+    [Fact]
+    public async Task Ayuda_despues_de_la_orden_tambien_sale_con_0()
+    {
+        (int codigo, string salida, string error) = await Correr("lista", "--help");
+        Assert.Equal(0, codigo);
+        Assert.StartsWith("Uso: lanzador", salida, StringComparison.Ordinal);
+        Assert.Empty(error.Trim());
+    }
+
+    [Fact]
+    public async Task Actualizar_sin_nada_instalado_dice_todo_al_dia()
+    {
+        (int codigo, string salida, _) = await Correr("actualizar");
+        Assert.Equal(0, codigo);
+        Assert.Equal("Todo al día.", salida.Trim());
+    }
+
+    [Fact]
+    public async Task Actualizar_app_que_no_esta_instalada_sale_con_1()
+    {
+        (int codigo, _, string error) = await Correr("actualizar", "fantasma");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: «fantasma» no está instalada; usa «lanzador instalar fantasma».", error.Trim());
+    }
+
+    [Theory]
+    [InlineData("subtitular/1.0.0")]
+    [InlineData("..")]
+    [InlineData("a\\b")]
+    [InlineData("con")]
+    public async Task Quitar_id_que_no_es_identificador_sale_con_1(string id)
+    {
+        (int codigo, _, string error) = await Correr("quitar", id);
+        Assert.Equal(1, codigo);
+        Assert.Equal($"Error: «{id}» no está instalada.", error.Trim());
+    }
+
+    // 10. El índice y la clave también pueden venir mal.
+
+    [Fact]
+    public async Task Clave_basura_con_indice_local_sale_con_2_en_espanol()
+    {
+        string indice = Path.Combine(_temp, "indice-clave.json");
+        File.WriteAllText(indice, Indice());
+        File.WriteAllText(indice + ".sig", _firmante.Sign(Encoding.UTF8.GetBytes(Indice())));
+        var error = new StringWriter();
+
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--clave", "esto-no-es-base64", "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+
+        Assert.Equal(2, codigo);
+        Assert.Equal("Error: La clave pública del catálogo no es válida.", error.ToString().Trim());
+    }
+
+    [Fact]
+    public async Task Clave_basura_con_indice_remoto_sale_con_2()
+    {
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", _servidor.UrlFor("indice.json").AbsoluteUri, "--clave", "esto-no-es-base64", "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.StartsWith("Error: ", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains("clave", error.ToString(), StringComparison.Ordinal);
+        Assert.Equal(0, _servidor.RequestCount("indice.json"));
+    }
+
+    [Fact]
+    public async Task Indice_que_es_una_carpeta_sale_con_2()
+    {
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", _temp, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.Equal($"Error: El índice «{_temp}» no es una URL http(s) ni un archivo que exista.", error.ToString().Trim());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Indice_vacio_o_espacios_sale_con_2_en_espanol(string indice)
+    {
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.Equal($"Error: El índice «{indice}» no es una URL http(s) ni un archivo que exista.", error.ToString().TrimEnd());
+    }
+
+    [Theory]
+    [InlineData("ftp://ejemplo.com/indice.json")]
+    [InlineData("mailto:alguien@ejemplo.com")]
+    public async Task Indice_con_esquema_que_no_es_http_sale_con_2_en_espanol(string indice)
+    {
+        var error = new StringWriter();
+        int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
+        Assert.Equal(2, codigo);
+        Assert.Equal($"Error: El índice «{indice}» no es una URL http(s) ni un archivo que exista.", error.ToString().TrimEnd());
+    }
+
+    // 11. «actualizar» sin app recorre todo lo instalado, también lo que el catálogo ya no ofrece.
+
+    [Fact]
+    public async Task Actualizar_todas_no_se_para_en_una_que_el_catalogo_ya_no_ofrece()
+    {
+        Assert.Equal(0, (await Correr("instalar", "subtitular")).Codigo);
+        // Las dos van antes que «subtitular»: una retirada del catálogo y otra que pide un Lanzador más nuevo.
+        Directory.CreateDirectory(Path.Combine(Herramientas, "retirada", "1.0.0"));
+        Directory.CreateDirectory(Path.Combine(Herramientas, "rastrear", "1.0.0"));
+        string exigente = Entrada("rastrear", "2.0.0", "app", "app2.zip", _app2).Replace(" }", ", \"minApp\": \"99.0.0\" }", StringComparison.Ordinal);
+        Publicar(Indice(exigente, Entrada("subtitular", "1.0.0", "app", "app1.zip", _app1), Entrada("subtitular", "1.1.0", "app", "app2.zip", _app2)));
+
+        (int codigo, string salida, string error) = await Correr("actualizar");
+
+        Assert.Equal(0, codigo);
+        Assert.Equal("subtitular: 1.0.0 → 1.1.0", salida.Trim());
+        Assert.DoesNotContain("Error:", error, StringComparison.Ordinal);
+        Assert.True(Directory.Exists(Path.Combine(Herramientas, "retirada", "1.0.0")));
+        Assert.True(Directory.Exists(Path.Combine(Herramientas, "rastrear", "1.0.0")));
+
+        // Pedida por su nombre sí se dice por qué no se puede.
+        (codigo, _, error) = await Correr("actualizar", "rastrear");
+        Assert.Equal(1, codigo);
+        Assert.Equal("Error: «rastrear» necesita el Lanzador 99.0.0 o posterior.", error.Trim());
     }
 }

@@ -62,4 +62,53 @@ public sealed class OpcionesComunesTests
             Assert.Equal($"Error: Falta el valor de {opcion}.", error.ToString().Trim());
         }
     }
+
+    [Theory]
+    [InlineData("-h")]
+    [InlineData("-")]
+    [InlineData("--raro")]
+    public void Valor_que_empieza_por_guion_no_vale_como_valor(string valor)
+    {
+        var ex = Assert.Throws<ErrorDeUso>(() => OpcionesComunes.Parsear(["--indice", valor]));
+        Assert.Equal("Falta el valor de --indice.", ex.Message);
+    }
+
+    [Fact]
+    public void Indice_vacio_se_guarda_tal_cual_lo_rechaza_el_instalador()
+    {
+        OpcionesComunes opciones = OpcionesComunes.Parsear(["--indice", ""]);
+        Assert.Equal("", opciones.Indice);
+        Assert.Empty(opciones.Argumentos);
+    }
+
+    [Theory]
+    [InlineData("--modo")]
+    [InlineData("--INDICE")]
+    [InlineData("--indice=x")]
+    [InlineData("--")]
+    public void Opcion_desconocida_no_se_traga_queda_en_argumentos(string desconocida)
+    {
+        OpcionesComunes opciones = OpcionesComunes.Parsear([desconocida, "x"]);
+        Assert.Equal(new[] { desconocida, "x" }, opciones.Argumentos);
+    }
+
+    [Fact]
+    public void Opciones_y_argumentos_intercalados_se_reconocen_en_cualquier_orden()
+    {
+        OpcionesComunes opciones = OpcionesComunes.Parsear(["subtitular", "--destino", "d", "instalar", "--comun", "c"]);
+        Assert.Equal(new[] { "subtitular", "instalar" }, opciones.Argumentos);
+        Assert.Equal("d", opciones.Carpetas.Herramientas);
+        Assert.Equal("c", opciones.Carpetas.Comun);
+    }
+
+    [Theory]
+    [InlineData("--destino", "")]
+    [InlineData("--destino", "   ")]
+    [InlineData("--comun", "")]
+    [InlineData("--comun", "   ")]
+    public void Carpeta_vacia_no_vale_como_valor(string opcion, string valor)
+    {
+        var ex = Assert.Throws<ErrorDeUso>(() => OpcionesComunes.Parsear(["quitar", "subtitular", opcion, valor]));
+        Assert.Equal($"Falta el valor de {opcion}.", ex.Message);
+    }
 }
