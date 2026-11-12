@@ -285,7 +285,7 @@ public sealed class OrdenesTests : IAsyncLifetime, IDisposable
         var error = new StringWriter();
         int codigo = await Ordenes.EjecutarAsync(["lista", "--indice", indice, "--destino", Herramientas, "--comun", Comun], new StringWriter(), error);
         Assert.Equal(2, codigo);
-        Assert.Equal($"Error: El índice «{indice}» no es una URL ni un archivo que exista.", error.ToString().Trim());
+        Assert.Equal($"Error: El índice «{indice}» no es una URL http(s) ni un archivo que exista.", error.ToString().Trim());
     }
 
     [Fact]

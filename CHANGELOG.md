@@ -21,6 +21,12 @@
 - Un catálogo con firma inválida (o sin conexión) ya no deja la lista vacía en silencio: en su sitio sale un panel con el motivo en español («La firma del catálogo no es válida: el catálogo no es el que publicó Dathinel o llegó dañado. Por seguridad no se ofrece nada para instalar») y «Volver a intentar». La verificación de firma y huella al instalar no cambia.
 
 ### Corregido
+- `--indice` vacío, con solo espacios o con un esquema que no es http(s) (`ftp://…`) sale con código 2 y «El índice «…» no es una URL http(s) ni un archivo que exista», en vez de una excepción sin capturar.
+- «Quitar» y la limpieza de la versión vieja al actualizar borran también los archivos y carpetas de solo lectura, y ya no fallan con una unión (junction) dentro de la carpeta: en los enlaces no se entra, se borra el enlace y nunca su destino.
+- Leer las tarjetas mientras una descarga termina o se quita ya no lanza `FileNotFoundException`: el peso de cada descarga se mide con una sola consulta al disco.
+- Dos instalaciones a la vez chocaban en el mismo `.parcial` (comparten `Comun\descargas`, módulos y modelos): ahora van en turno; la segunda dice «Esperando a que termine otra instalación», se puede cancelar y no vuelve a bajar lo que la primera ya dejó.
+- La tarjeta ya no promete «Reanudar descarga» con un `.parcial` más grande que el zip ni «Instalar (ya descargado)» con un zip que no pesa lo publicado: los dos se descartan al instalar.
+- Los pesos entre 1023,95 MB y 1 GB se dicen «1.0 GB», no «1024.0 MB».
 - La tarjeta se recarga sin perder el estado sin conexión; «Quitar» informa de las descargas de todas las versiones y la ventana y la CLI comparten el parseo de opciones.
 - La CI de `main` fallaba en la prueba de `catalogo-entrada.ps1`: el script usaba `Get-FileHash`, `ConvertTo-Json`, `Write-Host` y `New-Object`, que Windows PowerShell 5.1 no encuentra cuando lo lanza pwsh 7 (hereda un `PSModulePath` con el que no carga `Microsoft.PowerShell.Utility`). Ahora calcula la huella y escribe el JSON con .NET, y la prueba comprueba la forma de la entrada (que `SignedIndex` la acepte, huella de 64 hexadecimales, peso mayor que cero) y la huella del zip de prueba, sin depender de ninguna release.
 
