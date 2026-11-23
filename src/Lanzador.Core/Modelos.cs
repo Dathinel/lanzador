@@ -181,6 +181,7 @@ public static class CatalogoMetadatos
         "subtitular" => ("Subtitular", "Subtítulos automáticos, traducción a otros idiomas y lectura en voz alta."),
         "rastrear" => ("Rastrear", "Seguimiento y visión por IA para video: puntos, fondo, rostros y encuadre."),
         "rodaje" => ("Rodaje", "Editor de video no lineal con IA local para Windows."),
+        "beamline" => ("BeamLine", "Envía archivos y carpetas entre equipos, en tu red o por internet, cifrado y sin cuenta."),
         _ => (char.ToUpperInvariant(id[0]) + id[1..], $"Herramienta {id} del catálogo firmado.")
     };
 }
